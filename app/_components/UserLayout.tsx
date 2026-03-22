@@ -230,28 +230,46 @@ export default function UserLayout({
 				</div>
 
 				{/* Center: search */}
-				<div className='flex-1 flex justify-center px-6'>
-					<div className='flex items-center gap-3 w-full max-w-[600px]'>
-						<div className='flex flex-1 h-10 border border-[#303030] rounded-full overflow-hidden bg-[#121212]'>
+				<div className='flex-1 flex justify-center px-4'>
+					<div className='flex items-center gap-3 w-full max-w-[640px]'>
+						<div
+							className='flex flex-1 h-11 border border-[#2a2a2a] rounded-full overflow-hidden bg-[#181818] shadow-inner'
+							style={{
+								paddingLeft: '20px',
+								paddingRight: '12px',
+							}}
+						>
 							<input
 								type='text'
 								value={searchQuery}
 								onChange={e => setSearchQuery(e.target.value)}
-								placeholder='Введите запрос'
-								className='flex-1 bg-transparent border-none outline-none px-5 text-sm text-white placeholder:text-[#555]'
+								placeholder='Enter request'
+								className='flex-1 bg-transparent border-none outline-none pl-6 pr-2 text-sm text-white placeholder:text-[#4a4a4a] min-w-0'
 							/>
-							<div className='flex items-center px-3 text-[#555]'>
+							<div
+								className='flex items-center pl-4 pr-3 text-[#444] border-r border-[#2a2a2a] shrink-0'
+								style={{
+									paddingLeft: '20px',
+									paddingRight: '12px',
+								}}
+							>
 								<svg
-									className='w-5 h-5'
+									className='w-[20px] h-[30px]'
 									viewBox='0 0 24 24'
 									fill='currentColor'
 								>
 									<path d='M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z' />
 								</svg>
 							</div>
-							<button className='px-5 cursor-pointer text-white bg-[#222] hover:bg-[#2e2e2e] transition-colors border-l border-[#303030]'>
+							<button
+								className='flex items-center justify-center px-5 cursor-pointer text-[#888] hover:text-white bg-transparent hover:bg-[#252525] transition-colors shrink-0'
+								style={{
+									paddingLeft: '10px',
+									paddingRight: '5px',
+								}}
+							>
 								<svg
-									className='w-5 h-5'
+									className='w-[22px] h-[22px]'
 									viewBox='0 0 24 24'
 									fill='currentColor'
 								>
@@ -259,8 +277,12 @@ export default function UserLayout({
 								</svg>
 							</button>
 						</div>
-						<button className='w-10 h-10 rounded-full bg-[#1e1e1e] flex items-center justify-center text-white hover:bg-[#2e2e2e] transition-colors cursor-pointer shrink-0 border border-[#303030]'>
-							<svg className='w-5 h-5' viewBox='0 0 24 24' fill='currentColor'>
+						<button className='w-11 h-11 rounded-full bg-[#1a1a1a] flex items-center justify-center text-[#888] hover:text-white hover:bg-[#252525] transition-colors cursor-pointer shrink-0 border border-[#2a2a2a]'>
+							<svg
+								className='w-[18px] h-[18px]'
+								viewBox='0 0 24 24'
+								fill='currentColor'
+							>
 								<path d='M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z' />
 							</svg>
 						</button>
@@ -315,7 +337,7 @@ export default function UserLayout({
 							{mainNav.map(item => (
 								<div
 									key={item.label}
-									className={`flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 transition-colors ${
+									className={`flex items-center gap-4 w-full px-5 py-4 rounded-xl cursor-pointer hover:bg-white/10 transition-colors ${
 										item.active
 											? 'bg-[#272727] font-semibold'
 											: 'text-[#e0e0e0]'

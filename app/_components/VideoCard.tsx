@@ -29,7 +29,7 @@ export default function VideoCard({
 		<div
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
-			className='cursor-pointer w-full group'
+			className='cursor-pointer w-full group flex gap-3 flex-col'
 		>
 			{/* Thumbnail */}
 			<div
@@ -49,18 +49,18 @@ export default function VideoCard({
 			{/* Info */}
 			<div className='flex gap-2 mt-2.5 items-start'>
 				<div
-					className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center font-bold text-xs text-white ${channelColor}`}
+					className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center font-bold text-xs text-white ${channelColor}`}
 				>
 					{channelAvatar}
 				</div>
 				<div className='flex-1 min-w-0'>
-					<p className='text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-0.5'>
+					<p className='text-[16px] font-semibold text-white leading-snug line-clamp-2 mb-0.5'>
 						{title}
 					</p>
-					<p className='text-[12px] text-[#aaa] hover:text-white transition-colors'>
+					<p className='text-[14px] text-[#aaa] hover:text-white transition-colors'>
 						{channel}
 					</p>
-					<p className='text-[12px] text-[#aaa]'>
+					<p className='text-[14px] text-[#aaa]'>
 						{views} · {uploadedAt}
 					</p>
 				</div>
