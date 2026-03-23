@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import './globals.css'
+import '../globals.css'
+import { LanguageProvider } from '@/context/LanguageContext'
 
 export const metadata: Metadata = {
 	title: 'ArmTube',
@@ -25,7 +26,9 @@ export default function RootLayout({
 					rel='stylesheet'
 				/>
 			</head>
-			<body>{children}</body>
+			<LanguageProvider>
+				<body>{children}</body>
+			</LanguageProvider>
 		</html>
 	)
 }

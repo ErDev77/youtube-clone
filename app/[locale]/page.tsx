@@ -1,5 +1,9 @@
-import UserLayout from './_components/UserLayout'
-import VideoCard from './_components/VideoCard'
+'use client'
+
+import { useTranslations } from '@/translations/translations'
+import UserLayout from '../_components/layout/UserLayout'
+import VideoCard from '../_components/video/VideoCard'
+import { useLanguage } from '@/context/LanguageContext'
 
 /* ─── Regular videos ─── */
 const videos = [
@@ -314,6 +318,8 @@ const videos2 = [
 	},
 ]
 export default function Home() {
+	const t = useTranslations()
+	const { language } = useLanguage()
 	return (
 		<UserLayout>
 			{/* ── 4-col video grid ── */}

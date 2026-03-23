@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useTranslations } from '@/translations/translations'
+import { useLanguage } from '@/context/LanguageContext'
 
 /* ─── Sidebar data ─── */
 const mainNav = [
@@ -205,6 +207,9 @@ export default function UserLayout({
 	const [navOpen, setNavOpen] = useState(true)
 	const [langOpen, setLangOpen] = useState(true)
 
+	const t = useTranslations()
+	const { language } = useLanguage()
+
 	return (
 		<div className='bg-[#0f0f0f] min-h-screen text-white text-sm'>
 			{/* ══ HEADER ══ */}
@@ -243,7 +248,7 @@ export default function UserLayout({
 								type='text'
 								value={searchQuery}
 								onChange={e => setSearchQuery(e.target.value)}
-								placeholder='Enter request'
+								placeholder={t.mainSearch}
 								className='flex-1 bg-transparent border-none outline-none pl-6 pr-2 text-sm text-white placeholder:text-[#4a4a4a] min-w-0'
 							/>
 							<div
