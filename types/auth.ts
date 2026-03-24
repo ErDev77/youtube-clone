@@ -111,7 +111,7 @@ export interface MiddlewareContext {
 
 export interface UseAuthReturn {
 	/** null while loading, undefined if unauthenticated */
-	user: { id: UUID; email: string } | null | undefined
+	user: { id: UUID; email: string; } | null | undefined
 	isLoading: boolean
 	isAuthenticated: boolean
 	login: (input: LoginInput) => Promise<AuthResponse>

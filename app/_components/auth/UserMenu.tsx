@@ -186,10 +186,7 @@ export default function UserMenu() {
 					{/* Links */}
 					<div style={{ padding: '6px 0' }}>
 						{[
-							{ href: '/en/your-videos', label: 'Your Videos', icon: '▶' },
-							{ href: '/en/playlists', label: 'Playlists', icon: '≡' },
-							{ href: '/en/liked', label: 'Liked Videos', icon: '♥' },
-							{ href: '/en/history', label: 'History', icon: '↺' },
+							{ href: `/en/channel/${user.id}`, label: 'Your Profile', icon: '▶' },
 							{ href: '/en/settings', label: 'Settings', icon: '⚙' },
 						].map(item => (
 							<Link
