@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useTranslations } from '@/translations/translations'
 import { useLanguage } from '@/context/LanguageContext'
+import UserAvatarMenu from './UserAvatarMenu'
 
 /* ─── Sidebar data ─── */
 const mainNav = [
@@ -317,9 +318,7 @@ export default function UserLayout({
 							9+
 						</span>
 					</button>
-					<div className='w-9 h-9 rounded-full bg-teal-600 flex items-center justify-center font-bold text-sm cursor-pointer ml-1'>
-						е
-					</div>
+					<UserAvatarMenu />
 				</div>
 			</header>
 

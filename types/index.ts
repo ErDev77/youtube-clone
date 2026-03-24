@@ -34,6 +34,11 @@ export const VIDEO_CATEGORIES: VideoCategory[] = [
 	'videogames',
 ]
 
+export type VideoType = 'normal' | 'shorts'
+
+export const VIDEO_TYPES: VideoType[] = ['normal', 'shorts']
+
+
 export type Locale = 'en' | 'hy' | 'ru'
 export const LOCALES: Locale[] = ['en', 'hy', 'ru']
 export const DEFAULT_LOCALE: Locale = 'en'
@@ -50,7 +55,8 @@ export type UUID = string
 export interface DbUser {
 	id: UUID
 	email: string
-	password: string // bcrypt hash — NEVER send to client
+	username: string
+	password: string
 	created_at: Date
 }
 
@@ -61,6 +67,7 @@ export interface DbVideo {
 	description: string | null
 	thumbnail_url: string | null
 	video_url: string
+	video_type: VideoType
 	category: VideoCategory
 	views_count: number
 	likes_count: number

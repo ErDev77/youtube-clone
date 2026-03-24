@@ -1,6 +1,8 @@
+// app/[locale]/layout.tsx
 import type { Metadata } from 'next'
 import '../globals.css'
 import { LanguageProvider } from '@/context/LanguageContext'
+import { AuthProvider } from '@/context/AuthContext'
 
 export const metadata: Metadata = {
 	title: 'ArmTube',
@@ -27,7 +29,9 @@ export default function RootLayout({
 				/>
 			</head>
 			<LanguageProvider>
-				<body>{children}</body>
+				<AuthProvider>
+					<body>{children}</body>
+				</AuthProvider>
 			</LanguageProvider>
 		</html>
 	)

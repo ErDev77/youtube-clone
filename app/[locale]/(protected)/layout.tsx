@@ -1,8 +1,20 @@
-// import { redirect } from 'next/navigation'
-// import { getSession } from '@/lib/auth/session'
+// app/[locale]/(protected)/layout.tsx
+import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/auth/session'
 
-// export default async function ProtectedLayout({ children }) {
-// 	const session = await getSession() // reads cookie, verifies JWT
-// 	if (!session) redirect('/en/login') // should never hit this if middleware works
-// 	return <>{children}</>
-// }
+export default async function ProtectedLayout({
+	children,
+	params,
+}: {
+	children: React.ReactNode
+	params: Promise<{ locale: string }>
+}) {
+	const session = await getSession()
+	const { locale } = await params
+
+	if (!session) {
+		redirect(`/${locale}/login`)
+	}
+
+	return <>{children}</>
+}
