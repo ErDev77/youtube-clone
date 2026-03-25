@@ -12,9 +12,19 @@ export async function GET(
 			'then' in context.params ? await context.params : context.params
 		const { id } = params
 
-		// получаем юзера по id
 		const result = await pool.query(
-			'SELECT id, email, username FROM users WHERE id = $1',
+			`
+			SELECT 
+				id, 
+				email, 
+				username, 
+				display_name, 
+				avatar_url,
+				bio,
+				created_at
+			FROM users 
+			WHERE id = $1
+			`,
 			[id],
 		)
 
@@ -34,6 +44,10 @@ export async function GET(
 					id: user.id,
 					email: user.email,
 					username: user.username,
+					display_name: user.display_name,
+					avatar_url: user.avatar_url,
+					bio: user.bio,
+					created_at: user.created_at
 				},
 			},
 		})

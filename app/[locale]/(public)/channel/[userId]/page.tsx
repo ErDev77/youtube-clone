@@ -13,6 +13,7 @@ type User = {
 	bio?: string
 	avatar_url?: string
 	banner_url?: string
+	created_at: string
 }
 
 type Video = {
@@ -45,6 +46,15 @@ function timeAgo(iso: string): string {
 
 function getInitials(name: string): string {
 	return name.slice(0, 2).toUpperCase()
+}
+
+function formatDate(iso: string): string {
+	const date = new Date(iso)
+	return date.toLocaleDateString('en-US', {
+		year: 'numeric',
+		month: 'long',
+		day: 'numeric',
+	})
 }
 
 function colorFromId(id: string): string {
@@ -735,7 +745,7 @@ export default function ChannelPage() {
 		)
 
 	const isOwner = currentUser?.id === user.id
-	const displayName = user.display_name || user.username
+	const displayName = user.display_name?.trim() || user.username
 	const avatarColor = colorFromId(user.id)
 
 	return (
@@ -839,18 +849,6 @@ export default function ChannelPage() {
 					<p style={{ fontSize: 13, color: '#555', margin: '0 0 6px' }}>
 						@{user.username}
 					</p>
-					{user.bio && (
-						<p
-							style={{
-								fontSize: 13,
-								color: '#999',
-								margin: 0,
-								lineHeight: 1.5,
-							}}
-						>
-							{user.bio}
-						</p>
-					)}
 					<p style={{ fontSize: 12, color: '#444', marginTop: 6 }}>
 						{videos.length} {videos.length === 1 ? 'video' : 'videos'}
 					</p>
@@ -1029,9 +1027,8 @@ export default function ChannelPage() {
 								style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
 							>
 								{[
-									['Email', user.email],
-									['Username', '@' + user.username],
 									['Videos', String(videos.length)],
+									['Registration date', formatDate(user.created_at)],
 								].map(([label, value]) => (
 									<div
 										key={label}

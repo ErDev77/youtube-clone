@@ -58,6 +58,10 @@ export interface DbUser {
 	username: string
 	password: string
 	created_at: Date
+	display_name?: string
+	bio?: string
+	avatar_url?: string
+	banner_url?: string
 }
 
 export interface DbVideo {
