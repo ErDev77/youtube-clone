@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from '@/translations/translations'
 import { useLanguage } from '@/context/LanguageContext'
 import UserMenu from '../auth/UserMenu'
+import { useAuthContext } from '@/context/AuthContext'
+
+const VideoUploadForm = lazy(() => import('../video/VideoUploadForm'))
 
 /* ─────────────────────────────────────────────
    SIDEBAR DATA
@@ -128,27 +131,11 @@ const navSection = [
 	},
 ]
 
-const subscriptions = [
-	{ name: 'MrBeast', avatar: 'M', color: '#e63946', dot: true },
-	{ name: 'Dude Perfect', avatar: 'D', color: '#457b9d', dot: false },
-	{ name: 'T-Series', avatar: 'T', color: '#6a4c93', dot: false },
-	{ name: 'PewDiePie', avatar: 'P', color: '#f4a261', dot: true },
-	{ name: '5-Min Crafts', avatar: '5', color: '#2a9d8f', dot: false },
-	{ name: 'Billie Eilish', avatar: 'B', color: '#2a9d8f', dot: true },
-	{ name: 'Dua Lipa', avatar: 'D', color: '#e76f51', dot: false },
-	{ name: 'NBA', avatar: 'N', color: '#e76f51', dot: true },
-	{ name: 'NASA', avatar: 'N', color: '#555', dot: false },
-]
-
 const languages = [
 	{ code: 'am', label: 'Հայերեն', flag: 'https://flagcdn.com/w20/am.png' },
 	{ code: 'ru', label: 'Русский', flag: 'https://flagcdn.com/w20/ru.png' },
 	{ code: 'gb', label: 'English', flag: 'https://flagcdn.com/w20/gb.png' },
 ]
-
-/* ─────────────────────────────────────────────
-   SMALL COMPONENTS
-───────────────────────────────────────────── */
 
 function Chevron({ open }: { open: boolean }) {
 	return (
@@ -290,10 +277,6 @@ function Divider() {
 	)
 }
 
-/* ─────────────────────────────────────────────
-   MAIN LAYOUT
-───────────────────────────────────────────── */
-
 export default function UserLayout({
 	children,
 }: {
@@ -307,9 +290,16 @@ export default function UserLayout({
 	const [youOpen, setYouOpen] = useState(true)
 	const [navOpen, setNavOpen] = useState(true)
 	const [langOpen, setLangOpen] = useState(false)
+	const [uploadOpen, setUploadOpen] = useState(false)
 
 	const t = useTranslations()
 	const { language } = useLanguage()
+	const { user, isAuthenticated } = useAuthContext()
+
+	const handleUploadSuccess = () => {
+		// Trigger page refresh of video feed
+		window.location.reload()
+	}
 
 	return (
 		<div
@@ -328,9 +318,10 @@ export default function UserLayout({
 				::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
 				::-webkit-scrollbar-thumb:hover { background: #333; }
 				@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+				@keyframes spin { to { transform: rotate(360deg) } }
 			`}</style>
 
-			{/* ══════════ HEADER ══════════ */}
+			{/* HEADER */}
 			<header
 				style={{
 					position: 'fixed',
@@ -348,7 +339,7 @@ export default function UserLayout({
 					gap: 12,
 				}}
 			>
-				{/* Left: burger + logo */}
+				{/* Left */}
 				<div
 					style={{
 						display: 'flex',
@@ -385,7 +376,6 @@ export default function UserLayout({
 							<path d='M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z' />
 						</svg>
 					</button>
-
 					<Link
 						href='/'
 						style={{
@@ -395,7 +385,6 @@ export default function UserLayout({
 							textDecoration: 'none',
 						}}
 					>
-						{/* Logo mark */}
 						<div
 							style={{
 								width: 28,
@@ -443,7 +432,6 @@ export default function UserLayout({
 							maxWidth: 580,
 						}}
 					>
-						{/* Search bar */}
 						<div
 							style={{
 								flex: 1,
@@ -521,8 +509,6 @@ export default function UserLayout({
 								</button>
 							)}
 						</div>
-
-						{/* Mic button */}
 						<button
 							style={{
 								width: 36,
@@ -559,7 +545,7 @@ export default function UserLayout({
 					</div>
 				</div>
 
-				{/* Right: actions */}
+				{/* Right */}
 				<div
 					style={{
 						display: 'flex',
@@ -568,39 +554,47 @@ export default function UserLayout({
 						flexShrink: 0,
 					}}
 				>
-					{/* Upload button */}
-					<button
-						style={{
-							display: 'flex',
-							alignItems: 'center',
-							gap: 6,
-							padding: '7px 14px',
-							borderRadius: 20,
-							border: '1px solid #1e1e1e',
-							background: 'none',
-							color: '#888',
-							fontSize: 12,
-							fontWeight: 600,
-							cursor: 'pointer',
-							transition: 'border-color 0.15s, color 0.15s, background 0.15s',
-							fontFamily: 'inherit',
-						}}
-						onMouseEnter={e => {
-							e.currentTarget.style.borderColor = '#333'
-							e.currentTarget.style.color = '#fff'
-							e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-						}}
-						onMouseLeave={e => {
-							e.currentTarget.style.borderColor = '#1e1e1e'
-							e.currentTarget.style.color = '#888'
-							e.currentTarget.style.background = 'none'
-						}}
-					>
-						<svg width='14' height='14' viewBox='0 0 24 24' fill='currentColor'>
-							<path d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z' />
-						</svg>
-						Create
-					</button>
+					{/* Upload button — only shown when authenticated */}
+					{isAuthenticated && (
+						<button
+							onClick={() => setUploadOpen(true)}
+							style={{
+								display: 'flex',
+								alignItems: 'center',
+								gap: 6,
+								padding: '7px 14px',
+								borderRadius: 20,
+								border: '1px solid #1e1e1e',
+								background: 'none',
+								color: '#888',
+								fontSize: 12,
+								fontWeight: 600,
+								cursor: 'pointer',
+								transition: 'border-color 0.15s, color 0.15s, background 0.15s',
+								fontFamily: 'inherit',
+							}}
+							onMouseEnter={e => {
+								e.currentTarget.style.borderColor = '#e63946'
+								e.currentTarget.style.color = '#e63946'
+								e.currentTarget.style.background = 'rgba(230,57,70,0.08)'
+							}}
+							onMouseLeave={e => {
+								e.currentTarget.style.borderColor = '#1e1e1e'
+								e.currentTarget.style.color = '#888'
+								e.currentTarget.style.background = 'none'
+							}}
+						>
+							<svg
+								width='14'
+								height='14'
+								viewBox='0 0 24 24'
+								fill='currentColor'
+							>
+								<path d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z' />
+							</svg>
+							Upload
+						</button>
+					)}
 
 					{/* Notifications */}
 					<button
@@ -644,14 +638,13 @@ export default function UserLayout({
 						/>
 					</button>
 
-					{/* User menu */}
 					<UserMenu />
 				</div>
 			</header>
 
-			{/* ══════════ BODY ══════════ */}
+			{/* BODY */}
 			<div style={{ display: 'flex', paddingTop: 56 }}>
-				{/* ══════════ SIDEBAR ══════════ */}
+				{/* SIDEBAR */}
 				<aside
 					style={{
 						position: 'fixed',
@@ -677,7 +670,6 @@ export default function UserLayout({
 							gap: 2,
 						}}
 					>
-						{/* Main nav */}
 						{mainNav.map(item => (
 							<NavItem
 								key={item.label}
@@ -685,10 +677,7 @@ export default function UserLayout({
 								active={pathname === item.href}
 							/>
 						))}
-
 						<Divider />
-
-						{/* YOU section */}
 						<SectionLabel
 							label='You'
 							open={youOpen}
@@ -705,85 +694,7 @@ export default function UserLayout({
 								))}
 							</div>
 						)}
-
 						<Divider />
-
-						{/* SUBSCRIPTIONS section */}
-						<SectionLabel
-							label='Subscriptions'
-							open={subsOpen}
-							onToggle={() => setSubsOpen(v => !v)}
-						/>
-						{subsOpen && (
-							<div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-								{subscriptions.map(sub => (
-									<div
-										key={sub.name}
-										style={{
-											display: 'flex',
-											alignItems: 'center',
-											gap: 10,
-											padding: '7px 12px',
-											borderRadius: 10,
-											cursor: 'pointer',
-											transition: 'background 0.15s',
-										}}
-										onMouseEnter={e =>
-											(e.currentTarget.style.background =
-												'rgba(255,255,255,0.04)')
-										}
-										onMouseLeave={e =>
-											(e.currentTarget.style.background = 'transparent')
-										}
-									>
-										<div
-											style={{
-												width: 22,
-												height: 22,
-												borderRadius: '50%',
-												background: sub.color,
-												display: 'flex',
-												alignItems: 'center',
-												justifyContent: 'center',
-												fontSize: 9,
-												fontWeight: 800,
-												color: '#fff',
-												flexShrink: 0,
-											}}
-										>
-											{sub.avatar}
-										</div>
-										<span
-											style={{
-												fontSize: 12,
-												color: '#777',
-												flex: 1,
-												overflow: 'hidden',
-												textOverflow: 'ellipsis',
-												whiteSpace: 'nowrap',
-											}}
-										>
-											{sub.name}
-										</span>
-										{sub.dot && (
-											<span
-												style={{
-													width: 6,
-													height: 6,
-													borderRadius: '50%',
-													background: '#e63946',
-													flexShrink: 0,
-												}}
-											/>
-										)}
-									</div>
-								))}
-							</div>
-						)}
-
-						<Divider />
-
-						{/* EXPLORE section */}
 						<SectionLabel
 							label='Explore'
 							open={navOpen}
@@ -800,10 +711,7 @@ export default function UserLayout({
 								))}
 							</div>
 						)}
-
 						<Divider />
-
-						{/* LANGUAGES section */}
 						<SectionLabel
 							label='Languages'
 							open={langOpen}
@@ -849,8 +757,6 @@ export default function UserLayout({
 								))}
 							</div>
 						)}
-
-						{/* Footer note */}
 						<div style={{ padding: '24px 12px 0', marginTop: 8 }}>
 							<p
 								style={{
@@ -865,7 +771,7 @@ export default function UserLayout({
 					</div>
 				</aside>
 
-				{/* ══════════ MAIN CONTENT ══════════ */}
+				{/* MAIN */}
 				<main
 					style={{
 						flex: 1,
@@ -877,6 +783,16 @@ export default function UserLayout({
 					<div style={{ padding: '32px 24px 64px' }}>{children}</div>
 				</main>
 			</div>
+
+			{/* Upload modal */}
+			{uploadOpen && (
+				<Suspense fallback={null}>
+					<VideoUploadForm
+						onClose={() => setUploadOpen(false)}
+						onSuccess={handleUploadSuccess}
+					/>
+				</Suspense>
+			)}
 		</div>
 	)
 }

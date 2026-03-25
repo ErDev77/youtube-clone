@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import UserLayout from '@/app/_components/layout/UserLayout'
+import { useAuthContext } from '@/context/AuthContext'
 
 /* ─── Types ─── */
 type User = {
@@ -20,6 +21,7 @@ type Video = {
 	id: string
 	title: string
 	thumbnail_url?: string
+	video_url: string
 	views_count: number
 	created_at: string
 	duration?: string
@@ -49,8 +51,7 @@ function getInitials(name: string): string {
 }
 
 function formatDate(iso: string): string {
-	const date = new Date(iso)
-	return date.toLocaleDateString('en-US', {
+	return new Date(iso).toLocaleDateString('en-US', {
 		year: 'numeric',
 		month: 'long',
 		day: 'numeric',
@@ -71,40 +72,56 @@ function colorFromId(id: string): string {
 	return colors[Math.abs(hash) % colors.length]
 }
 
-/* ─── ImageKit upload helper ─── */
 async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	const authRes = await fetch('/api/imagekit-auth')
-	if (!authRes.ok) throw new Error('Auth failed')
+
+	if (!authRes.ok) {
+		const text = await authRes.text()
+		throw new Error(`Auth failed: ${text}`)
+	}
+
 	const { token, expire, signature } = await authRes.json()
 
-	const publicKey = process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY ?? ''
-	const urlEndpoint = process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT ?? ''
+	const publicKey = process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!
+	const uploadEndpoint = process.env.NEXT_PUBLIC_IMAGEKIT_UPLOAD_ENDPOINT!
+
+	if (!uploadEndpoint) {
+		throw new Error('Upload endpoint missing')
+	}
 
 	const form = new FormData()
 	form.append('file', file)
 	form.append('fileName', `${Date.now()}-${file.name}`)
 	form.append('folder', folder)
+
 	form.append('publicKey', publicKey)
 	form.append('signature', signature)
 	form.append('expire', String(expire))
 	form.append('token', token)
 
-	const uploadRes = await fetch(`${urlEndpoint}/api/v1/files/upload`, {
+	const uploadRes = await fetch(`${uploadEndpoint}/api/v1/files/upload`, {
 		method: 'POST',
 		body: form,
 	})
-	if (!uploadRes.ok) throw new Error('Upload failed')
+
+	if (!uploadRes.ok) {
+		const text = await uploadRes.text()
+		throw new Error(`Upload failed: ${text}`)
+	}
+
 	const data = await uploadRes.json()
-	return data.url as string
+
+	return data.url
 }
 
 /* ─── VideoCard ─── */
-function VideoCard({ video }: { video: Video }) {
+function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
 	const [hovered, setHovered] = useState(false)
 	return (
 		<div
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
+			onClick={onPlay}
 			style={{ cursor: 'pointer' }}
 		>
 			<div
@@ -139,11 +156,41 @@ function VideoCard({ video }: { video: Video }) {
 							display: 'flex',
 							alignItems: 'center',
 							justifyContent: 'center',
+							background: 'linear-gradient(135deg,#1a1a1a,#2a2a2a)',
 						}}
 					>
 						<svg width='36' height='36' viewBox='0 0 24 24' fill='#333'>
 							<path d='M8 5v14l11-7z' />
 						</svg>
+					</div>
+				)}
+				{/* Play overlay */}
+				{hovered && (
+					<div
+						style={{
+							position: 'absolute',
+							inset: 0,
+							background: 'rgba(0,0,0,0.4)',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}
+					>
+						<div
+							style={{
+								width: 48,
+								height: 48,
+								borderRadius: '50%',
+								background: 'rgba(230,57,70,0.9)',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+							}}
+						>
+							<svg width='20' height='20' viewBox='0 0 24 24' fill='white'>
+								<path d='M8 5v14l11-7z' />
+							</svg>
+						</div>
 					</div>
 				)}
 				{video.duration && (
@@ -188,45 +235,98 @@ function VideoCard({ video }: { video: Video }) {
 	)
 }
 
-/* ─── VideoGrid ─── */
-function VideoGrid({ videos, isOwner }: { videos: Video[]; isOwner: boolean }) {
-	if (videos.length === 0) {
-		return (
-			<div style={{ textAlign: 'center', padding: '80px 20px', color: '#555' }}>
-				<svg
-					width='56'
-					height='56'
-					viewBox='0 0 24 24'
-					fill='none'
-					stroke='#333'
-					strokeWidth='1.5'
-					style={{ margin: '0 auto 16px', display: 'block' }}
-				>
-					<rect x='2' y='3' width='20' height='14' rx='2' />
-					<path d='M8 21h8M12 17v4' />
-				</svg>
-				<p style={{ fontSize: 15, color: '#666', marginBottom: 6 }}>
-					No videos yet
-				</p>
-				{isOwner && (
-					<p style={{ fontSize: 13, color: '#444' }}>
-						Upload your first video to get started
-					</p>
-				)}
-			</div>
-		)
-	}
+/* ─── VideoModal ─── */
+function VideoModal({ video, onClose }: { video: Video; onClose: () => void }) {
+	useEffect(() => {
+		fetch(`/api/videos/${video.id}/view`, { method: 'POST' }).catch(() => {})
+		const handler = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+		window.addEventListener('keydown', handler)
+		return () => window.removeEventListener('keydown', handler)
+	}, [video.id, onClose])
+
 	return (
 		<div
 			style={{
-				display: 'grid',
-				gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-				gap: 20,
+				position: 'fixed',
+				inset: 0,
+				zIndex: 2000,
+				background: 'rgba(0,0,0,0.95)',
+				display: 'flex',
+				alignItems: 'center',
+				justifyContent: 'center',
+				padding: 20,
 			}}
+			onClick={e => e.target === e.currentTarget && onClose()}
 		>
-			{videos.map(v => (
-				<VideoCard key={v.id} video={v} />
-			))}
+			<div
+				style={{
+					width: '100%',
+					maxWidth: 900,
+					borderRadius: 12,
+					overflow: 'hidden',
+					background: '#111',
+				}}
+			>
+				<video
+					src={video.video_url}
+					controls
+					autoPlay
+					style={{
+						width: '100%',
+						maxHeight: '65vh',
+						background: '#000',
+						display: 'block',
+					}}
+				/>
+				<div
+					style={{
+						padding: '16px 20px',
+						display: 'flex',
+						alignItems: 'flex-start',
+						justifyContent: 'space-between',
+						gap: 16,
+					}}
+				>
+					<div>
+						<h2
+							style={{
+								fontSize: 17,
+								fontWeight: 700,
+								color: '#fff',
+								margin: '0 0 4px',
+							}}
+						>
+							{video.title}
+						</h2>
+						<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+							{formatViews(video.views_count)} views
+						</p>
+					</div>
+					<button
+						onClick={onClose}
+						style={{
+							background: 'none',
+							border: 'none',
+							cursor: 'pointer',
+							color: '#666',
+							padding: 4,
+							flexShrink: 0,
+						}}
+					>
+						<svg
+							width='20'
+							height='20'
+							viewBox='0 0 24 24'
+							fill='none'
+							stroke='currentColor'
+							strokeWidth='2'
+						>
+							<line x1='18' y1='6' x2='6' y2='18' />
+							<line x1='6' y1='6' x2='18' y2='18' />
+						</svg>
+					</button>
+				</div>
+			</div>
 		</div>
 	)
 }
@@ -339,7 +439,6 @@ function EditModal({
 					overflow: 'hidden',
 				}}
 			>
-				{/* Header */}
 				<div
 					style={{
 						display: 'flex',
@@ -378,7 +477,6 @@ function EditModal({
 						</svg>
 					</button>
 				</div>
-
 				<div style={{ padding: 24 }}>
 					{/* Banner */}
 					<div style={{ marginBottom: 24 }}>
@@ -450,7 +548,6 @@ function EditModal({
 							onChange={e => handleImageSelect(e, 'banner')}
 						/>
 					</div>
-
 					{/* Avatar */}
 					<div
 						style={{
@@ -538,7 +635,6 @@ function EditModal({
 							onChange={e => handleImageSelect(e, 'avatar')}
 						/>
 					</div>
-
 					{/* Display Name */}
 					<div style={{ marginBottom: 16 }}>
 						<label
@@ -563,7 +659,6 @@ function EditModal({
 							onBlur={e => (e.currentTarget.style.borderColor = '#222')}
 						/>
 					</div>
-
 					{/* Bio */}
 					<div style={{ marginBottom: 24 }}>
 						<label
@@ -599,7 +694,6 @@ function EditModal({
 							{bio.length}/300
 						</p>
 					</div>
-
 					{error && (
 						<div
 							style={{
@@ -615,7 +709,6 @@ function EditModal({
 							{error}
 						</div>
 					)}
-
 					<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
 						<button
 							onClick={onClose}
@@ -673,23 +766,17 @@ function EditModal({
 /* ─── Main Page ─── */
 export default function ChannelPage() {
 	const params = useParams<{ userId: string }>()
+	const { user: currentUser } = useAuthContext()
 	const [user, setUser] = useState<User | null>(null)
-	const [currentUser, setCurrentUser] = useState<User | null>(null)
 	const [videos, setVideos] = useState<Video[]>([])
 	const [tab, setTab] = useState<Tab>('videos')
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [editOpen, setEditOpen] = useState(false)
 	const [subscribed, setSubscribed] = useState(false)
+	const [playingVideo, setPlayingVideo] = useState<Video | null>(null)
 
-	useEffect(() => {
-		fetch('/api/me')
-			.then(r => r.json())
-			.then(d => {
-				if (d.ok) setCurrentUser(d.data.user)
-			})
-			.catch(() => {})
-	}, [])
+	const isOwner = currentUser?.id === params.userId
 
 	useEffect(() => {
 		Promise.all([
@@ -744,16 +831,15 @@ export default function ChannelPage() {
 			</UserLayout>
 		)
 
-	const isOwner = currentUser?.id === user.id
 	const displayName = user.display_name?.trim() || user.username
 	const avatarColor = colorFromId(user.id)
 
 	return (
 		<UserLayout>
 			<style>{`
-        @keyframes spin { to { transform: rotate(360deg) } }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
-      `}</style>
+				@keyframes spin { to { transform: rotate(360deg) } }
+				@keyframes fadeUp { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
+			`}</style>
 
 			{/* Banner */}
 			<div
@@ -803,7 +889,6 @@ export default function ChannelPage() {
 					animation: 'fadeUp 0.4s ease both',
 				}}
 			>
-				{/* Avatar */}
 				<div
 					style={{
 						width: 88,
@@ -832,8 +917,6 @@ export default function ChannelPage() {
 						getInitials(displayName)
 					)}
 				</div>
-
-				{/* Text */}
 				<div style={{ flex: 1, minWidth: 200, paddingBottom: 4 }}>
 					<h1
 						style={{
@@ -853,8 +936,6 @@ export default function ChannelPage() {
 						{videos.length} {videos.length === 1 ? 'video' : 'videos'}
 					</p>
 				</div>
-
-				{/* Buttons */}
 				<div
 					style={{ display: 'flex', gap: 8, paddingBottom: 4, flexShrink: 0 }}
 				>
@@ -897,34 +978,6 @@ export default function ChannelPage() {
 								</svg>
 								Edit Profile
 							</button>
-							<button
-								style={{
-									display: 'flex',
-									alignItems: 'center',
-									gap: 6,
-									padding: '9px 16px',
-									borderRadius: 24,
-									border: 'none',
-									background: '#e63946',
-									color: '#fff',
-									fontSize: 13,
-									fontWeight: 600,
-									cursor: 'pointer',
-								}}
-							>
-								<svg
-									width='14'
-									height='14'
-									viewBox='0 0 24 24'
-									fill='none'
-									stroke='currentColor'
-									strokeWidth='2.5'
-								>
-									<line x1='12' y1='5' x2='12' y2='19' />
-									<line x1='5' y1='12' x2='19' y2='12' />
-								</svg>
-								Upload
-							</button>
 						</>
 					) : (
 						<button
@@ -933,13 +986,12 @@ export default function ChannelPage() {
 								{
 									padding: '10px 24px',
 									borderRadius: 24,
-									border: 'none',
+									border: subscribed ? '1px solid #333' : 'none',
 									background: subscribed ? '#1a1a1a' : '#fff',
 									color: subscribed ? '#ccc' : '#000',
 									fontSize: 13,
 									fontWeight: 700,
 									cursor: 'pointer',
-									border: subscribed ? '1px solid #333' : 'none',
 								} as React.CSSProperties
 							}
 						>
@@ -983,7 +1035,53 @@ export default function ChannelPage() {
 
 			{/* Content */}
 			<div key={tab} style={{ animation: 'fadeUp 0.25s ease both' }}>
-				{tab === 'videos' && <VideoGrid videos={videos} isOwner={isOwner} />}
+				{tab === 'videos' &&
+					(videos.length === 0 ? (
+						<div
+							style={{
+								textAlign: 'center',
+								padding: '80px 20px',
+								color: '#555',
+							}}
+						>
+							<svg
+								width='56'
+								height='56'
+								viewBox='0 0 24 24'
+								fill='none'
+								stroke='#333'
+								strokeWidth='1.5'
+								style={{ margin: '0 auto 16px', display: 'block' }}
+							>
+								<rect x='2' y='3' width='20' height='14' rx='2' />
+								<path d='M8 21h8M12 17v4' />
+							</svg>
+							<p style={{ fontSize: 15, color: '#666', marginBottom: 6 }}>
+								No videos yet
+							</p>
+							{isOwner && (
+								<p style={{ fontSize: 13, color: '#444' }}>
+									Upload your first video using the Upload button in the header
+								</p>
+							)}
+						</div>
+					) : (
+						<div
+							style={{
+								display: 'grid',
+								gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+								gap: 20,
+							}}
+						>
+							{videos.map(v => (
+								<VideoCard
+									key={v.id}
+									video={v}
+									onPlay={() => setPlayingVideo(v)}
+								/>
+							))}
+						</div>
+					))}
 				{tab === 'about' && (
 					<div style={{ maxWidth: 560 }}>
 						<div style={{ marginBottom: 32 }}>
@@ -1028,7 +1126,7 @@ export default function ChannelPage() {
 							>
 								{[
 									['Videos', String(videos.length)],
-									['Registration date', formatDate(user.created_at)],
+									['Joined', formatDate(user.created_at)],
 								].map(([label, value]) => (
 									<div
 										key={label}
@@ -1060,6 +1158,12 @@ export default function ChannelPage() {
 					onSave={updates =>
 						setUser(prev => (prev ? { ...prev, ...updates } : prev))
 					}
+				/>
+			)}
+			{playingVideo && (
+				<VideoModal
+					video={playingVideo}
+					onClose={() => setPlayingVideo(null)}
 				/>
 			)}
 		</UserLayout>
