@@ -973,7 +973,7 @@ export default function ChannelPage() {
 					</p>
 				</div>
 				<div
-					style={{ display: 'flex', gap: 8, paddingBottom: 4, flexShrink: 0 }}
+					style={{ display: 'flex', gap: 8, paddingBottom: 25, flexShrink: 0 }}
 				>
 					{isOwner ? (
 						<>

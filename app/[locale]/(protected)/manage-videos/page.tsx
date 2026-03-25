@@ -16,7 +16,7 @@ type Video = {
 	description: string | null
 	thumbnail_url: string | null
 	video_url: string
-	category: Category
+	category: Category | null
 	video_type: VideoType
 	views_count: number
 	likes_count: number
@@ -43,7 +43,6 @@ async function uploadThumbnail(file: File): Promise<string> {
 	const authRes = await fetch('/api/imagekit-auth')
 	if (!authRes.ok) throw new Error('Auth failed')
 	const { token, expire, signature } = await authRes.json()
-
 	const form = new FormData()
 	form.append('file', file)
 	form.append('fileName', `${Date.now()}-${file.name}`)
@@ -52,7 +51,6 @@ async function uploadThumbnail(file: File): Promise<string> {
 	form.append('signature', signature)
 	form.append('expire', String(expire))
 	form.append('token', token)
-
 	const res = await fetch(
 		`${process.env.NEXT_PUBLIC_IMAGEKIT_UPLOAD_ENDPOINT}/api/v1/files/upload`,
 		{ method: 'POST', body: form },
@@ -61,7 +59,6 @@ async function uploadThumbnail(file: File): Promise<string> {
 	return (await res.json()).url
 }
 
-// ─── Delete Confirmation Modal ────────────────────────────────────────────────
 function DeleteModal({
 	video,
 	onCancel,
@@ -186,7 +183,6 @@ function DeleteModal({
 	)
 }
 
-// ─── Edit Modal ───────────────────────────────────────────────────────────────
 function EditModal({
 	video,
 	onCancel,
@@ -197,9 +193,10 @@ function EditModal({
 	onSave: (updated: Video) => void
 }) {
 	const [title, setTitle] = useState(video.title)
-	// Always use a string in the textarea — convert null → ''
 	const [description, setDescription] = useState(video.description ?? '')
-	const [category, setCategory] = useState<Category>(video.category)
+	const [category, setCategory] = useState<Category | null>(
+		video.category ?? null,
+	)
 	const [videoType, setVideoType] = useState<VideoType>(
 		video.video_type ?? 'normal',
 	)
@@ -225,25 +222,20 @@ function EditModal({
 		try {
 			let thumbnail_url = video.thumbnail_url
 			if (thumbnailFile) thumbnail_url = await uploadThumbnail(thumbnailFile)
-
 			const trimmedDesc = description.trim()
-
 			const res = await fetch(`/api/videos/${video.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					title: title.trim(),
-					// send null explicitly when empty so DB stores NULL not ''
 					description: trimmedDesc === '' ? null : trimmedDesc,
-					category,
+					category: category ?? null,
 					video_type: videoType,
 					thumbnail_url: thumbnail_url ?? null,
 				}),
 			})
 			const data = await res.json()
-            console.log('PATCH response:', JSON.stringify(data, null, 2))
 			if (!res.ok) throw new Error(data.error || 'Failed to save')
-
 			onSave(data.data.video)
 		} catch (err) {
 			setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -335,16 +327,16 @@ function EditModal({
 									justifyContent: 'center',
 								}}
 								onMouseEnter={e => {
-									const overlay = e.currentTarget.querySelector(
+									const o = e.currentTarget.querySelector(
 										'.thumb-overlay',
 									) as HTMLElement
-									if (overlay) overlay.style.opacity = '1'
+									if (o) o.style.opacity = '1'
 								}}
 								onMouseLeave={e => {
-									const overlay = e.currentTarget.querySelector(
+									const o = e.currentTarget.querySelector(
 										'.thumb-overlay',
 									) as HTMLElement
-									if (overlay) overlay.style.opacity = '0'
+									if (o) o.style.opacity = '0'
 								}}
 							>
 								{thumbnailPreview ? (
@@ -489,10 +481,51 @@ function EditModal({
 						</div>
 					</div>
 
-					{/* Category */}
+					{/* Category — optional */}
 					<div style={{ marginBottom: 24 }}>
-						<label style={labelStyle}>Category</label>
+						<div
+							style={{
+								display: 'flex',
+								alignItems: 'center',
+								gap: 8,
+								marginBottom: 8,
+							}}
+						>
+							<label style={{ ...labelStyle, margin: 0 }}>Category</label>
+							<span
+								style={{
+									fontSize: 11,
+									color: '#444',
+									fontWeight: 400,
+									textTransform: 'none',
+									letterSpacing: 0,
+								}}
+							>
+								optional
+							</span>
+						</div>
 						<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+							<button
+								type='button'
+								onClick={() => setCategory(null)}
+								disabled={saving}
+								style={{
+									padding: '7px 14px',
+									borderRadius: 20,
+									border: `1px solid ${category === null ? '#666' : '#222'}`,
+									background:
+										category === null
+											? 'rgba(255,255,255,0.07)'
+											: 'transparent',
+									color: category === null ? '#ccc' : '#555',
+									fontSize: 12,
+									cursor: saving ? 'not-allowed' : 'pointer',
+									fontFamily: 'inherit',
+									transition: 'all 0.15s',
+								}}
+							>
+								🌐 No category
+							</button>
 							{CATEGORIES.map(cat => (
 								<button
 									key={cat}
@@ -565,7 +598,6 @@ function EditModal({
 	)
 }
 
-// ─── Spinner ──────────────────────────────────────────────────────────────────
 function Spinner() {
 	return (
 		<span
@@ -583,7 +615,6 @@ function Spinner() {
 	)
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManageVideosPage() {
 	const { user } = useAuthContext()
 	const [videos, setVideos] = useState<Video[]>([])
@@ -653,7 +684,6 @@ export default function ManageVideosPage() {
 				.video-row:hover { background: #161616 !important; }
 			`}</style>
 
-			{/* Toast */}
 			{toast && (
 				<div
 					style={{
@@ -679,7 +709,6 @@ export default function ManageVideosPage() {
 				</div>
 			)}
 
-			{/* Page header */}
 			<div style={{ marginBottom: 32 }}>
 				<h1
 					style={{
@@ -739,11 +768,10 @@ export default function ManageVideosPage() {
 						overflow: 'hidden',
 					}}
 				>
-					{/* Table header */}
 					<div
 						style={{
 							display: 'grid',
-							gridTemplateColumns: '2fr 100px 100px 70px 90px 80px',
+							gridTemplateColumns: '2fr 100px 110px 70px 90px 80px',
 							padding: '11px 20px',
 							background: '#0f0f0f',
 							borderBottom: '1px solid #1a1a1a',
@@ -766,15 +794,13 @@ export default function ManageVideosPage() {
 							),
 						)}
 					</div>
-
-					{/* Rows */}
 					{videos.map((video, i) => (
 						<div
 							key={video.id}
 							className='video-row'
 							style={{
 								display: 'grid',
-								gridTemplateColumns: '2fr 100px 100px 70px 90px 80px',
+								gridTemplateColumns: '2fr 100px 110px 70px 90px 80px',
 								padding: '14px 20px',
 								alignItems: 'center',
 								borderBottom:
@@ -848,7 +874,6 @@ export default function ManageVideosPage() {
 									>
 										{video.title}
 									</p>
-									{/* description: only render if non-null and non-empty */}
 									{video.description ? (
 										<p
 											style={{
@@ -876,7 +901,6 @@ export default function ManageVideosPage() {
 									)}
 								</div>
 							</div>
-
 							{/* Type badge */}
 							<div>
 								<span
@@ -899,7 +923,6 @@ export default function ManageVideosPage() {
 									{video.video_type === 'shorts' ? '📱 Shorts' : '🎬 Normal'}
 								</span>
 							</div>
-
 							{/* Category */}
 							<div>
 								<span
@@ -909,10 +932,15 @@ export default function ManageVideosPage() {
 										textTransform: 'capitalize',
 									}}
 								>
-									{categoryEmoji[video.category]} {video.category}
+									{video.category ? (
+										`${categoryEmoji[video.category] ?? ''} ${video.category}`
+									) : (
+										<span style={{ color: '#444', fontStyle: 'italic' }}>
+											No category
+										</span>
+									)}
 								</span>
 							</div>
-
 							{/* Views */}
 							<div>
 								<span
@@ -925,14 +953,12 @@ export default function ManageVideosPage() {
 									{fmt(video.views_count)}
 								</span>
 							</div>
-
 							{/* Date */}
 							<div>
 								<span style={{ fontSize: 12, color: '#555' }}>
 									{timeAgo(video.created_at)}
 								</span>
 							</div>
-
 							{/* Actions */}
 							<div style={{ display: 'flex', gap: 6 }}>
 								<button
@@ -1014,7 +1040,6 @@ export default function ManageVideosPage() {
 	)
 }
 
-// ─── Shared styles ────────────────────────────────────────────────────────────
 const overlayStyle: React.CSSProperties = {
 	position: 'fixed',
 	inset: 0,
@@ -1027,7 +1052,6 @@ const overlayStyle: React.CSSProperties = {
 	backdropFilter: 'blur(4px)',
 	animation: 'fadeIn 0.15s ease',
 }
-
 const labelStyle: React.CSSProperties = {
 	display: 'block',
 	fontSize: 11,
@@ -1037,7 +1061,6 @@ const labelStyle: React.CSSProperties = {
 	letterSpacing: '1px',
 	marginBottom: 8,
 }
-
 const inputStyle: React.CSSProperties = {
 	width: '100%',
 	padding: '11px 14px',
@@ -1051,14 +1074,12 @@ const inputStyle: React.CSSProperties = {
 	boxSizing: 'border-box',
 	transition: 'border-color 0.15s',
 }
-
 const charStyle: React.CSSProperties = {
 	textAlign: 'right',
 	fontSize: 11,
 	color: '#444',
 	marginTop: 4,
 }
-
 const cancelBtnStyle: React.CSSProperties = {
 	padding: '10px 20px',
 	borderRadius: 10,
@@ -1070,7 +1091,6 @@ const cancelBtnStyle: React.CSSProperties = {
 	fontFamily: 'inherit',
 	transition: 'all 0.15s',
 }
-
 const iconBtnStyle: React.CSSProperties = {
 	background: 'none',
 	border: 'none',
@@ -1081,7 +1101,6 @@ const iconBtnStyle: React.CSSProperties = {
 	borderRadius: 6,
 	transition: 'color 0.15s',
 }
-
 const actionBtnStyle: React.CSSProperties = {
 	width: 32,
 	height: 32,
