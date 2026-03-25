@@ -7,7 +7,6 @@ export async function GET(
 	context: { params: { id: string } | Promise<{ id: string }> },
 ) {
 	try {
-		// ⚡ unwrap, если params — Promise
 		const params =
 			'then' in context.params ? await context.params : context.params
 		const { id } = params
@@ -20,6 +19,7 @@ export async function GET(
 				username, 
 				display_name, 
 				avatar_url,
+				banner_url,
 				bio,
 				created_at
 			FROM users 
@@ -46,8 +46,9 @@ export async function GET(
 					username: user.username,
 					display_name: user.display_name,
 					avatar_url: user.avatar_url,
+					banner_url: user.banner_url,
 					bio: user.bio,
-					created_at: user.created_at
+					created_at: user.created_at,
 				},
 			},
 		})

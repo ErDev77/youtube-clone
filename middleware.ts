@@ -9,6 +9,7 @@ const PROTECTED_PATHS = [
 	'/watch-later',
 	'/liked',
 	'/your-videos',
+	'/manage-videos',
 	'/settings',
 ]
 

@@ -5,6 +5,7 @@ import Link from 'next/link'
 
 export default function RegisterPage() {
 	const [email, setEmail] = useState('')
+	const [username, setUsername] = useState('')
 	const [password, setPassword] = useState('')
 	const [confirm, setConfirm] = useState('')
 	const [loading, setLoading] = useState(false)
@@ -27,10 +28,29 @@ export default function RegisterPage() {
 		strength
 	]
 
+	// live username validation feedback
+	const usernameValid = /^[a-zA-Z0-9][a-zA-Z0-9_-]{2,29}$/.test(username)
+	const usernameHint =
+		username.length === 0
+			? ''
+			: !usernameValid
+				? '3–30 chars, letters/numbers/_ or - only'
+				: '✓ Looks good'
+
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault()
 		setError('')
 
+		if (!username.trim()) {
+			setError('Please choose a username.')
+			return
+		}
+		if (!usernameValid) {
+			setError(
+				'Username must be 3–30 characters: letters, numbers, _ or - only.',
+			)
+			return
+		}
 		if (password !== confirm) {
 			setError('Passwords do not match.')
 			return
@@ -45,7 +65,11 @@ export default function RegisterPage() {
 			const res = await fetch('/api/auth/register', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, password }),
+				body: JSON.stringify({
+					email,
+					username: username.trim().toLowerCase(),
+					password,
+				}),
 			})
 			const data = await res.json()
 			if (!res.ok) {
@@ -64,286 +88,78 @@ export default function RegisterPage() {
 		<div className='auth-root'>
 			<style>{`
 				@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap');
-
 				*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 				.auth-root {
-					min-height: 100vh;
-					background: #0a0a0a;
-					display: flex;
-					font-family: 'DM Sans', sans-serif;
-					position: relative;
-					overflow: hidden;
+					min-height: 100vh; background: #0a0a0a;
+					display: flex; font-family: 'DM Sans', sans-serif;
+					position: relative; overflow: hidden;
 				}
-
 				.auth-left {
-					width: 52%;
-					position: relative;
-					display: flex;
-					flex-direction: column;
-					justify-content: center;
+					width: 52%; position: relative;
+					display: flex; flex-direction: column; justify-content: center;
 					padding: 60px;
 					background: linear-gradient(135deg, #0d0d0d 0%, #111 100%);
-					border-right: 1px solid #1a1a1a;
-					overflow: hidden;
+					border-right: 1px solid #1a1a1a; overflow: hidden;
 				}
-
 				.auth-left::before {
-					content: '';
-					position: absolute;
-					top: -200px; left: -200px;
+					content: ''; position: absolute; top: -200px; left: -200px;
 					width: 600px; height: 600px;
 					background: radial-gradient(circle, rgba(255,50,50,0.08) 0%, transparent 70%);
 					pointer-events: none;
 				}
-
 				.auth-left::after {
-					content: '';
-					position: absolute;
-					bottom: -150px; right: -100px;
+					content: ''; position: absolute; bottom: -150px; right: -100px;
 					width: 400px; height: 400px;
 					background: radial-gradient(circle, rgba(255,80,50,0.06) 0%, transparent 70%);
 					pointer-events: none;
 				}
-
-				.brand-mark {
-					display: flex;
-					align-items: center;
-					gap: 10px;
-					margin-bottom: 80px;
-					position: relative;
-					z-index: 1;
-				}
-
-				.brand-icon {
-					width: 36px; height: 36px;
-					background: #e63946;
-					border-radius: 8px;
-					display: flex; align-items: center; justify-content: center;
-				}
-
+				.brand-mark { display: flex; align-items: center; gap: 10px; margin-bottom: 80px; position: relative; z-index: 1; }
+				.brand-icon { width: 36px; height: 36px; background: #e63946; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 				.brand-icon svg { width: 18px; height: 18px; fill: white; }
-
-				.brand-name {
-					font-family: 'DM Serif Display', serif;
-					font-size: 22px;
-					color: #fff;
-					letter-spacing: -0.3px;
-				}
-
+				.brand-name { font-family: 'DM Serif Display', serif; font-size: 22px; color: #fff; letter-spacing: -0.3px; }
 				.hero-text { position: relative; z-index: 1; }
-
-				.hero-label {
-					font-size: 11px;
-					font-weight: 500;
-					letter-spacing: 2.5px;
-					text-transform: uppercase;
-					color: #e63946;
-					margin-bottom: 20px;
-				}
-
-				.hero-heading {
-					font-family: 'DM Serif Display', serif;
-					font-size: 52px;
-					line-height: 1.08;
-					color: #fff;
-					margin-bottom: 24px;
-				}
-
-				.hero-sub {
-					font-size: 15px;
-					color: #666;
-					line-height: 1.7;
-					max-width: 380px;
-				}
-
-				.perks {
-					margin-top: 48px;
-					display: flex;
-					flex-direction: column;
-					gap: 16px;
-					position: relative;
-					z-index: 1;
-				}
-
-				.perk {
-					display: flex;
-					align-items: flex-start;
-					gap: 14px;
-				}
-
-				.perk-icon {
-					width: 32px; height: 32px;
-					background: rgba(230,57,70,0.1);
-					border: 1px solid rgba(230,57,70,0.2);
-					border-radius: 8px;
-					display: flex; align-items: center; justify-content: center;
-					flex-shrink: 0;
-					margin-top: 1px;
-				}
-
+				.hero-label { font-size: 11px; font-weight: 500; letter-spacing: 2.5px; text-transform: uppercase; color: #e63946; margin-bottom: 20px; }
+				.hero-heading { font-family: 'DM Serif Display', serif; font-size: 52px; line-height: 1.08; color: #fff; margin-bottom: 24px; }
+				.hero-sub { font-size: 15px; color: #666; line-height: 1.7; max-width: 380px; }
+				.perks { margin-top: 48px; display: flex; flex-direction: column; gap: 16px; position: relative; z-index: 1; }
+				.perk { display: flex; align-items: flex-start; gap: 14px; }
+				.perk-icon { width: 32px; height: 32px; background: rgba(230,57,70,0.1); border: 1px solid rgba(230,57,70,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
 				.perk-icon svg { width: 15px; height: 15px; stroke: #e63946; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-
 				.perk-title { font-size: 14px; font-weight: 500; color: #ccc; }
 				.perk-desc { font-size: 12px; color: #555; margin-top: 2px; }
-
-				.auth-right {
-					flex: 1;
-					display: flex;
-					flex-direction: column;
-					justify-content: center;
-					align-items: center;
-					padding: 60px 48px;
-					background: #0a0a0a;
-				}
-
+				.auth-right { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 60px 48px; background: #0a0a0a; }
 				.form-card { width: 100%; max-width: 380px; }
-
-				.form-header { margin-bottom: 32px; }
-
-				.form-title {
-					font-family: 'DM Serif Display', serif;
-					font-size: 30px;
-					color: #fff;
-					margin-bottom: 8px;
-				}
-
+				.form-header { margin-bottom: 28px; }
+				.form-title { font-family: 'DM Serif Display', serif; font-size: 30px; color: #fff; margin-bottom: 8px; }
 				.form-subtitle { font-size: 14px; color: #555; }
 				.form-subtitle a { color: #e63946; text-decoration: none; font-weight: 500; }
 				.form-subtitle a:hover { text-decoration: underline; }
-
-				.field { margin-bottom: 16px; }
-
-				.field-label {
-					display: block;
-					font-size: 12px;
-					font-weight: 500;
-					letter-spacing: 0.5px;
-					color: #888;
-					margin-bottom: 8px;
-					text-transform: uppercase;
-				}
-
+				.field { margin-bottom: 14px; }
+				.field-label { display: block; font-size: 12px; font-weight: 500; letter-spacing: 0.5px; color: #888; margin-bottom: 8px; text-transform: uppercase; }
 				.field-wrap { position: relative; }
-
-				.field-input {
-					width: 100%;
-					background: #111;
-					border: 1px solid #222;
-					border-radius: 10px;
-					padding: 13px 16px;
-					font-size: 14px;
-					font-family: 'DM Sans', sans-serif;
-					color: #fff;
-					outline: none;
-					transition: border-color 0.2s, box-shadow 0.2s;
-					-webkit-appearance: none;
-				}
-
+				.field-input { width: 100%; background: #111; border: 1px solid #222; border-radius: 10px; padding: 13px 16px; font-size: 14px; font-family: 'DM Sans', sans-serif; color: #fff; outline: none; transition: border-color 0.2s, box-shadow 0.2s; -webkit-appearance: none; }
 				.field-input::placeholder { color: #333; }
-
-				.field-input:focus {
-					border-color: #e63946;
-					box-shadow: 0 0 0 3px rgba(230,57,70,0.1);
-				}
-
+				.field-input:focus { border-color: #e63946; box-shadow: 0 0 0 3px rgba(230,57,70,0.1); }
 				.field-input.has-toggle { padding-right: 46px; }
-
-				.toggle-btn {
-					position: absolute;
-					right: 14px; top: 50%;
-					transform: translateY(-50%);
-					background: none;
-					border: none;
-					cursor: pointer;
-					color: #444;
-					display: flex; align-items: center; justify-content: center;
-					padding: 4px;
-					transition: color 0.15s;
-				}
+				.field-hint { font-size: 11px; margin-top: 5px; }
+				.toggle-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #444; display: flex; align-items: center; justify-content: center; padding: 4px; transition: color 0.15s; }
 				.toggle-btn:hover { color: #888; }
 				.toggle-btn svg { width: 17px; height: 17px; }
-
-				/* Strength bar */
 				.strength-wrap { margin-top: 8px; }
-
-				.strength-bars {
-					display: flex;
-					gap: 4px;
-					margin-bottom: 4px;
-				}
-
-				.strength-bar {
-					flex: 1;
-					height: 3px;
-					border-radius: 2px;
-					background: #1e1e1e;
-					transition: background 0.3s;
-				}
-
-				.strength-label {
-					font-size: 11px;
-					color: #555;
-					text-align: right;
-				}
-
-				.error-msg {
-					background: rgba(230,57,70,0.08);
-					border: 1px solid rgba(230,57,70,0.25);
-					border-radius: 8px;
-					padding: 10px 14px;
-					font-size: 13px;
-					color: #e63946;
-					margin-bottom: 20px;
-				}
-
-				.submit-btn {
-					width: 100%;
-					padding: 14px;
-					background: #e63946;
-					color: #fff;
-					font-family: 'DM Sans', sans-serif;
-					font-size: 15px;
-					font-weight: 600;
-					border: none;
-					border-radius: 10px;
-					cursor: pointer;
-					margin-top: 8px;
-					transition: background 0.2s, transform 0.1s;
-				}
-
+				.strength-bars { display: flex; gap: 4px; margin-bottom: 4px; }
+				.strength-bar { flex: 1; height: 3px; border-radius: 2px; background: #1e1e1e; transition: background 0.3s; }
+				.strength-label { font-size: 11px; color: #555; text-align: right; }
+				.error-msg { background: rgba(230,57,70,0.08); border: 1px solid rgba(230,57,70,0.25); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #e63946; margin-bottom: 16px; }
+				.submit-btn { width: 100%; padding: 14px; background: #e63946; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; margin-top: 8px; transition: background 0.2s, transform 0.1s; }
 				.submit-btn:hover:not(:disabled) { background: #c62e3b; }
 				.submit-btn:active:not(:disabled) { transform: scale(0.985); }
 				.submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-				.spinner {
-					display: inline-block;
-					width: 16px; height: 16px;
-					border: 2px solid rgba(255,255,255,0.3);
-					border-top-color: #fff;
-					border-radius: 50%;
-					animation: spin 0.7s linear infinite;
-					vertical-align: middle;
-					margin-right: 8px;
-				}
-
+				.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 8px; }
 				@keyframes spin { to { transform: rotate(360deg); } }
-
-				.terms-note {
-					text-align: center;
-					font-size: 12px;
-					color: #333;
-					line-height: 1.6;
-					margin-top: 20px;
-				}
-
+				.terms-note { text-align: center; font-size: 12px; color: #333; line-height: 1.6; margin-top: 20px; }
 				.terms-note a { color: #555; text-decoration: none; }
 				.terms-note a:hover { color: #888; }
-
-				@media (max-width: 768px) {
-					.auth-left { display: none; }
-					.auth-right { padding: 40px 24px; }
-				}
+				@media (max-width: 768px) { .auth-left { display: none; } .auth-right { padding: 40px 24px; } }
 			`}</style>
 
 			{/* Left panel */}
@@ -356,7 +172,6 @@ export default function RegisterPage() {
 					</div>
 					<span className='brand-name'>ArmTube</span>
 				</div>
-
 				<div className='hero-text'>
 					<p className='hero-label'>Join ArmTube</p>
 					<h1 className='hero-heading'>
@@ -367,11 +182,10 @@ export default function RegisterPage() {
 						Connect.
 					</h1>
 					<p className='hero-sub'>
-						Join thousands of creators and viewers on Armenia's premier video
-						platform.
+						Join thousands of creators and viewers on Armenia&apos;s premier
+						video platform.
 					</p>
 				</div>
-
 				<div className='perks'>
 					{[
 						{
@@ -432,6 +246,7 @@ export default function RegisterPage() {
 					<form onSubmit={handleSubmit} noValidate>
 						{error && <div className='error-msg'>{error}</div>}
 
+						{/* Email */}
 						<div className='field'>
 							<label className='field-label' htmlFor='email'>
 								Email
@@ -448,6 +263,37 @@ export default function RegisterPage() {
 							/>
 						</div>
 
+						{/* Username */}
+						<div className='field'>
+							<label className='field-label' htmlFor='username'>
+								Username
+							</label>
+							<input
+								id='username'
+								type='text'
+								className='field-input'
+								placeholder='e.g. cool_creator42'
+								value={username}
+								onChange={e =>
+									setUsername(
+										e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, ''),
+									)
+								}
+								required
+								autoComplete='username'
+								maxLength={30}
+							/>
+							{usernameHint && (
+								<p
+									className='field-hint'
+									style={{ color: usernameValid ? '#2a9d8f' : '#888' }}
+								>
+									{usernameHint}
+								</p>
+							)}
+						</div>
+
+						{/* Password */}
 						<div className='field'>
 							<label className='field-label' htmlFor='password'>
 								Password
@@ -520,6 +366,7 @@ export default function RegisterPage() {
 							)}
 						</div>
 
+						{/* Confirm password */}
 						<div className='field'>
 							<label className='field-label' htmlFor='confirm'>
 								Confirm password
@@ -528,7 +375,7 @@ export default function RegisterPage() {
 								<input
 									id='confirm'
 									type={showConfirm ? 'text' : 'password'}
-									className={`field-input has-toggle${confirm && confirm !== password ? '' : ''}`}
+									className='field-input has-toggle'
 									placeholder='••••••••'
 									value={confirm}
 									onChange={e => setConfirm(e.target.value)}

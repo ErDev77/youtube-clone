@@ -7,16 +7,22 @@ import { randomUUID } from 'crypto'
 import { pool } from '@/lib/db'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// username: 3-30 chars, letters/numbers/underscores/hyphens, must start with letter or number
+const USERNAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{2,29}$/
 
 export async function POST(req: Request) {
 	try {
 		const body = await req.json()
-		const { email, password } = body as { email?: string; password?: string }
+		const { email, password, username } = body as {
+			email?: string
+			password?: string
+			username?: string
+		}
 
-		// ── Validation ─────────────────────────────────────────
-		if (!email || !password) {
+		// ── Validation ──────────────────────────────────────────────
+		if (!email || !password || !username) {
 			return NextResponse.json(
-				{ ok: false, error: 'Email and password are required.' },
+				{ ok: false, error: 'Email, username, and password are required.' },
 				{ status: 400 },
 			)
 		}
@@ -28,6 +34,17 @@ export async function POST(req: Request) {
 			)
 		}
 
+		if (!USERNAME_RE.test(username)) {
+			return NextResponse.json(
+				{
+					ok: false,
+					error:
+						'Username must be 3–30 characters and can only contain letters, numbers, underscores, or hyphens.',
+				},
+				{ status: 400 },
+			)
+		}
+
 		if (password.length < 8) {
 			return NextResponse.json(
 				{ ok: false, error: 'Password must be at least 8 characters.' },
@@ -35,38 +52,50 @@ export async function POST(req: Request) {
 			)
 		}
 
-		const normalized = email.toLowerCase().trim()
+		const normalizedEmail = email.toLowerCase().trim()
+		const normalizedUsername = username.trim().toLowerCase()
 
-		// ── Uniqueness check ───────────────────────────────────
-		const existing = await pool.query('SELECT id FROM users WHERE email = $1', [
-			normalized,
+		// ── Uniqueness checks ────────────────────────────────────────
+		const [existingEmail, existingUsername] = await Promise.all([
+			pool.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]),
+			pool.query('SELECT id FROM users WHERE username = $1', [
+				normalizedUsername,
+			]),
 		])
-		if (existing.rows.length > 0) {
+
+		if (existingEmail.rows.length > 0) {
 			return NextResponse.json(
 				{ ok: false, error: 'An account with this email already exists.' },
 				{ status: 409 },
 			)
 		}
 
-		// ── Create user ───────────────────────────────────────
-		const passwordHash = await bcrypt.hash(password, 12)
-		const user = {
-			id: randomUUID(),
-			email: normalized,
-			passwordHash,
+		if (existingUsername.rows.length > 0) {
+			return NextResponse.json(
+				{ ok: false, error: 'This username is already taken.' },
+				{ status: 409 },
+			)
 		}
 
+		// ── Create user ──────────────────────────────────────────────
+		const passwordHash = await bcrypt.hash(password, 12)
+		const id = randomUUID()
+
 		await pool.query(
-			'INSERT INTO users (id, email, password) VALUES ($1, $2, $3)',
-			[user.id, user.email, user.passwordHash],
+			'INSERT INTO users (id, email, username, password) VALUES ($1, $2, $3, $4)',
+			[id, normalizedEmail, normalizedUsername, passwordHash],
 		)
 
-		// ── Create JWT ────────────────────────────────────────
-		const token = await signJWT({ userId: user.id, email: user.email })
+		// ── JWT + cookie ─────────────────────────────────────────────
+		const token = await signJWT({ userId: id, email: normalizedEmail })
 
-		// ── Set auth cookie ──────────────────────────────────
 		const res = NextResponse.json(
-			{ ok: true, data: { user: { id: user.id, email: user.email } } },
+			{
+				ok: true,
+				data: {
+					user: { id, email: normalizedEmail, username: normalizedUsername },
+				},
+			},
 			{ status: 201 },
 		)
 
@@ -74,7 +103,7 @@ export async function POST(req: Request) {
 			httpOnly: true,
 			secure: process.env.NODE_ENV === 'production',
 			sameSite: 'lax',
-			maxAge: 60 * 60 * 24 * 7, // 7 дней
+			maxAge: 60 * 60 * 24 * 7,
 			path: '/',
 		})
 

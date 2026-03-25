@@ -36,6 +36,12 @@ function formatViews(n: number): string {
 	return String(n)
 }
 
+function formatSubs(n: number): string {
+	if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+	if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+	return String(n)
+}
+
 function timeAgo(iso: string): string {
 	const diff = Date.now() - new Date(iso).getTime()
 	const d = Math.floor(diff / 86400000)
@@ -774,25 +780,55 @@ export default function ChannelPage() {
 	const [error, setError] = useState<string | null>(null)
 	const [editOpen, setEditOpen] = useState(false)
 	const [subscribed, setSubscribed] = useState(false)
+	const [subscribersCount, setSubscribersCount] = useState(0)
+	const [subLoading, setSubLoading] = useState(false)
 	const [playingVideo, setPlayingVideo] = useState<Video | null>(null)
 
 	const isOwner = currentUser?.id === params.userId
-
+	const totalViews = videos.reduce((sum, v) => sum + (v.views_count || 0), 0)
 	useEffect(() => {
 		Promise.all([
 			fetch(`/api/users/${params.userId}`).then(r => r.json()),
 			fetch(`/api/users/${params.userId}/videos`)
 				.then(r => r.json())
 				.catch(() => ({ ok: false })),
+			fetch(`/api/users/${params.userId}/subscribe`)
+				.then(r => r.json())
+				.catch(() => null),
 		])
-			.then(([userData, videoData]) => {
+			.then(([userData, videoData, subData]) => {
 				if (userData.ok) setUser(userData.data.user)
 				else setError(userData.error || 'User not found')
 				if (videoData.ok && videoData.data?.items)
 					setVideos(videoData.data.items)
+				if (subData?.ok) {
+					setSubscribed(subData.data.subscribed)
+					setSubscribersCount(subData.data.subscribers_count)
+				}
 			})
 			.finally(() => setLoading(false))
 	}, [params.userId])
+
+	async function handleSubscribe() {
+		if (!currentUser) {
+			window.location.href = '/en/login'
+			return
+		}
+		setSubLoading(true)
+		try {
+			const res = await fetch(`/api/users/${params.userId}/subscribe`, {
+				method: 'POST',
+			})
+			const data = await res.json()
+			if (data.ok) {
+				setSubscribed(data.data.subscribed)
+				setSubscribersCount(data.data.subscribers_count)
+			}
+		} finally {
+			setSubLoading(false)
+		}
+	}
+ 
 
 	if (loading)
 		return (
@@ -978,24 +1014,62 @@ export default function ChannelPage() {
 								</svg>
 								Edit Profile
 							</button>
+							{/* ── ADD THIS BUTTON ── */}
+							<a
+								href='/en/manage-videos'
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: 6,
+									padding: '9px 16px',
+									borderRadius: 24,
+									border: '1px solid #2a2a2a',
+									background: '#1a1a1a',
+									color: '#ccc',
+									fontSize: 13,
+									fontWeight: 600,
+									cursor: 'pointer',
+									textDecoration: 'none',
+									transition: 'border-color 0.15s, color 0.15s',
+								}}
+								onMouseEnter={e => {
+									e.currentTarget.style.borderColor = '#e63946'
+									e.currentTarget.style.color = '#e63946'
+								}}
+								onMouseLeave={e => {
+									e.currentTarget.style.borderColor = '#2a2a2a'
+									e.currentTarget.style.color = '#ccc'
+								}}
+							>
+								<svg
+									width='14'
+									height='14'
+									viewBox='0 0 24 24'
+									fill='currentColor'
+								>
+									<path d='M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z' />
+								</svg>
+								Manage Videos
+							</a>
 						</>
 					) : (
 						<button
-							onClick={() => setSubscribed(s => !s)}
-							style={
-								{
-									padding: '10px 24px',
-									borderRadius: 24,
-									border: subscribed ? '1px solid #333' : 'none',
-									background: subscribed ? '#1a1a1a' : '#fff',
-									color: subscribed ? '#ccc' : '#000',
-									fontSize: 13,
-									fontWeight: 700,
-									cursor: 'pointer',
-								} as React.CSSProperties
-							}
+							onClick={handleSubscribe}
+							disabled={subLoading}
+							style={{
+								padding: '10px 24px',
+								borderRadius: 24,
+								border: subscribed ? '1px solid #333' : 'none',
+								background: subscribed ? '#1a1a1a' : '#fff',
+								color: subscribed ? '#ccc' : '#000',
+								fontSize: 13,
+								fontWeight: 700,
+								cursor: subLoading ? 'not-allowed' : 'pointer',
+								opacity: subLoading ? 0.7 : 1,
+								transition: 'all 0.15s',
+							}}
 						>
-							{subscribed ? 'Subscribed' : 'Subscribe'}
+							{subLoading ? '…' : subscribed ? 'Subscribed' : 'Subscribe'}
 						</button>
 					)}
 				</div>
@@ -1127,6 +1201,8 @@ export default function ChannelPage() {
 								{[
 									['Videos', String(videos.length)],
 									['Joined', formatDate(user.created_at)],
+									['Total views', formatViews(totalViews)],
+									['Subscribers', formatSubs(subscribersCount)],
 								].map(([label, value]) => (
 									<div
 										key={label}

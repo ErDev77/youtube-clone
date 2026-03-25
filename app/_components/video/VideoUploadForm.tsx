@@ -11,6 +11,11 @@ const CATEGORIES = [
 	{ value: 'videogames', label: '🕹️ Video Games' },
 ]
 
+const VIDEO_TYPES = [
+	{ value: 'normal', label: '🎬 Normal Video' },
+	{ value: 'shorts', label: '📱 Shorts' },
+]
+
 async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	const authRes = await fetch('/api/imagekit-auth')
 
@@ -22,7 +27,7 @@ async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	const { token, expire, signature } = await authRes.json()
 
 	const publicKey = process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!
-	const uploadEndpoint = process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT!
+	const uploadEndpoint = process.env.NEXT_PUBLIC_IMAGEKIT_UPLOAD_ENDPOINT!
 
 	if (!uploadEndpoint) {
 		throw new Error('Upload endpoint missing')
@@ -32,7 +37,6 @@ async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	form.append('file', file)
 	form.append('fileName', `${Date.now()}-${file.name}`)
 	form.append('folder', folder)
-
 	form.append('publicKey', publicKey)
 	form.append('signature', signature)
 	form.append('expire', String(expire))
@@ -49,7 +53,6 @@ async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	}
 
 	const data = await uploadRes.json()
-
 	return data.url
 }
 
@@ -66,6 +69,7 @@ export default function VideoUploadForm({
 	const [title, setTitle] = useState('')
 	const [description, setDescription] = useState('')
 	const [category, setCategory] = useState('music')
+	const [videoType, setVideoType] = useState<'normal' | 'shorts'>('normal')
 	const [videoFile, setVideoFile] = useState<File | null>(null)
 	const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
 	const [thumbnailPreview, setThumbnailPreview] = useState('')
@@ -104,7 +108,6 @@ export default function VideoUploadForm({
 		setUploading(true)
 
 		try {
-			// Step 1: Upload thumbnail
 			let thumbnail_url: string | undefined
 			if (thumbnailFile) {
 				setProgressLabel('Uploading thumbnail…')
@@ -113,13 +116,11 @@ export default function VideoUploadForm({
 				setProgress(30)
 			}
 
-			// Step 2: Upload video
 			setProgressLabel('Uploading video…')
 			setProgress(thumbnailFile ? 35 : 10)
 			const video_url = await uploadToImageKit(videoFile, '/videos')
 			setProgress(85)
 
-			// Step 3: Save to DB
 			setProgressLabel('Saving…')
 			const res = await fetch('/api/videos', {
 				method: 'POST',
@@ -130,6 +131,7 @@ export default function VideoUploadForm({
 					thumbnail_url,
 					video_url,
 					category,
+					video_type: videoType,
 				}),
 			})
 			const data = await res.json()
@@ -335,7 +337,7 @@ export default function VideoUploadForm({
 						}
 					/>
 
-					{/* Uploading progress */}
+					{/* Progress */}
 					{uploading && (
 						<div style={{ marginBottom: 20 }}>
 							<div
@@ -377,17 +379,7 @@ export default function VideoUploadForm({
 
 					{/* Title */}
 					<div style={{ marginBottom: 16 }}>
-						<label
-							style={{
-								display: 'block',
-								fontSize: 12,
-								fontWeight: 600,
-								color: '#888',
-								textTransform: 'uppercase',
-								letterSpacing: '0.5px',
-								marginBottom: 8,
-							}}
-						>
+						<label style={labelStyle}>
 							Title <span style={{ color: '#e63946' }}>*</span>
 						</label>
 						<input
@@ -396,48 +388,16 @@ export default function VideoUploadForm({
 							maxLength={100}
 							placeholder='Enter a descriptive title…'
 							disabled={uploading}
-							style={{
-								width: '100%',
-								padding: '12px 14px',
-								background: '#0d0d0d',
-								border: '1px solid #222',
-								borderRadius: 10,
-								color: '#fff',
-								fontSize: 14,
-								outline: 'none',
-								fontFamily: 'inherit',
-								boxSizing: 'border-box',
-							}}
+							style={inputStyle}
 							onFocus={e => (e.currentTarget.style.borderColor = '#e63946')}
 							onBlur={e => (e.currentTarget.style.borderColor = '#222')}
 						/>
-						<p
-							style={{
-								textAlign: 'right',
-								fontSize: 11,
-								color: '#444',
-								marginTop: 4,
-							}}
-						>
-							{title.length}/100
-						</p>
+						<p style={charCountStyle}>{title.length}/100</p>
 					</div>
 
 					{/* Description */}
 					<div style={{ marginBottom: 16 }}>
-						<label
-							style={{
-								display: 'block',
-								fontSize: 12,
-								fontWeight: 600,
-								color: '#888',
-								textTransform: 'uppercase',
-								letterSpacing: '0.5px',
-								marginBottom: 8,
-							}}
-						>
-							Description
-						</label>
+						<label style={labelStyle}>Description</label>
 						<textarea
 							value={description}
 							onChange={e => setDescription(e.target.value)}
@@ -445,47 +405,76 @@ export default function VideoUploadForm({
 							rows={3}
 							placeholder='Tell viewers about your video…'
 							disabled={uploading}
-							style={{
-								width: '100%',
-								padding: '12px 14px',
-								background: '#0d0d0d',
-								border: '1px solid #222',
-								borderRadius: 10,
-								color: '#fff',
-								fontSize: 14,
-								outline: 'none',
-								fontFamily: 'inherit',
-								resize: 'none',
-								boxSizing: 'border-box',
-							}}
+							style={{ ...inputStyle, resize: 'none' }}
 							onFocus={e => (e.currentTarget.style.borderColor = '#e63946')}
 							onBlur={e => (e.currentTarget.style.borderColor = '#222')}
 						/>
-						<p
-							style={{
-								textAlign: 'right',
-								fontSize: 11,
-								color: '#444',
-								marginTop: 4,
-							}}
-						>
-							{description.length}/500
-						</p>
+						<p style={charCountStyle}>{description.length}/500</p>
+					</div>
+
+					{/* Video Type */}
+					<div style={{ marginBottom: 16 }}>
+						<label style={labelStyle}>
+							Video Type <span style={{ color: '#e63946' }}>*</span>
+						</label>
+						<div style={{ display: 'flex', gap: 10 }}>
+							{VIDEO_TYPES.map(type => (
+								<button
+									key={type.value}
+									type='button'
+									onClick={() =>
+										setVideoType(type.value as 'normal' | 'shorts')
+									}
+									disabled={uploading}
+									style={{
+										flex: 1,
+										padding: '10px 14px',
+										borderRadius: 10,
+										border: `2px solid ${videoType === type.value ? '#e63946' : '#222'}`,
+										background:
+											videoType === type.value
+												? 'rgba(230,57,70,0.1)'
+												: 'transparent',
+										color: videoType === type.value ? '#e63946' : '#888',
+										fontSize: 13,
+										fontWeight: videoType === type.value ? 600 : 400,
+										cursor: uploading ? 'not-allowed' : 'pointer',
+										fontFamily: 'inherit',
+										transition: 'all 0.15s',
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'center',
+										gap: 6,
+									}}
+								>
+									{type.label}
+									{type.value === 'shorts' && (
+										<span
+											style={{
+												fontSize: 10,
+												background: 'rgba(230,57,70,0.2)',
+												color: '#e63946',
+												padding: '1px 6px',
+												borderRadius: 8,
+												fontWeight: 700,
+											}}
+										>
+											≤60s
+										</span>
+									)}
+								</button>
+							))}
+						</div>
+						{videoType === 'shorts' && (
+							<p style={{ fontSize: 11, color: '#555', marginTop: 6 }}>
+								Shorts are vertical short-form videos, up to 60 seconds.
+							</p>
+						)}
 					</div>
 
 					{/* Category */}
 					<div style={{ marginBottom: 16 }}>
-						<label
-							style={{
-								display: 'block',
-								fontSize: 12,
-								fontWeight: 600,
-								color: '#888',
-								textTransform: 'uppercase',
-								letterSpacing: '0.5px',
-								marginBottom: 8,
-							}}
-						>
+						<label style={labelStyle}>
 							Category <span style={{ color: '#e63946' }}>*</span>
 						</label>
 						<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -518,19 +507,7 @@ export default function VideoUploadForm({
 
 					{/* Thumbnail */}
 					<div style={{ marginBottom: 24 }}>
-						<label
-							style={{
-								display: 'block',
-								fontSize: 12,
-								fontWeight: 600,
-								color: '#888',
-								textTransform: 'uppercase',
-								letterSpacing: '0.5px',
-								marginBottom: 8,
-							}}
-						>
-							Thumbnail
-						</label>
+						<label style={labelStyle}>Thumbnail</label>
 						<div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
 							{thumbnailPreview ? (
 								<div style={{ position: 'relative', flexShrink: 0 }}>
@@ -723,4 +700,34 @@ export default function VideoUploadForm({
 			</div>
 		</div>
 	)
+}
+
+const labelStyle: React.CSSProperties = {
+	display: 'block',
+	fontSize: 12,
+	fontWeight: 600,
+	color: '#888',
+	textTransform: 'uppercase',
+	letterSpacing: '0.5px',
+	marginBottom: 8,
+}
+
+const inputStyle: React.CSSProperties = {
+	width: '100%',
+	padding: '12px 14px',
+	background: '#0d0d0d',
+	border: '1px solid #222',
+	borderRadius: 10,
+	color: '#fff',
+	fontSize: 14,
+	outline: 'none',
+	fontFamily: 'inherit',
+	boxSizing: 'border-box',
+}
+
+const charCountStyle: React.CSSProperties = {
+	textAlign: 'right',
+	fontSize: 11,
+	color: '#444',
+	marginTop: 4,
 }

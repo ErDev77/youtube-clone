@@ -14,13 +14,15 @@ export async function GET(
         const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50)
 
         const result = await pool.query(
-            `SELECT 
+					`SELECT 
                 v.id,
                 v.title,
+                v.description, 
                 v.thumbnail_url,
                 v.video_url,
                 v.category,
                 v.views_count,
+                v.video_type,  
                 v.likes_count,
                 v.comments_count,
                 v.created_at
@@ -28,8 +30,8 @@ export async function GET(
              WHERE v.user_id = $1
              ORDER BY v.created_at DESC
              LIMIT $2`,
-            [id, limit],
-        )
+					[id, limit],
+				)
 
         return NextResponse.json({
             ok: true,
