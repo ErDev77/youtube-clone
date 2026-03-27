@@ -161,8 +161,10 @@ function VideoCard({ video }: { video: Video }) {
 			onMouseLeave={() => setHovered(false)}
 			style={{ position: 'relative' }}
 		>
-			<Link href={`/en/watch/${video.id}`} style={{ textDecoration: 'none' }}>
-				{/* Thumbnail */}
+			<Link
+				href={`/en/watch/${video.id}`}
+				style={{ textDecoration: 'none', display: 'block' }}
+			>
 				<div
 					style={{
 						position: 'relative',
@@ -230,51 +232,54 @@ function VideoCard({ video }: { video: Video }) {
 						</div>
 					)}
 				</div>
-				{/* Meta */}
-				<div
-					style={{
-						display: 'flex',
-						gap: 10,
-						marginTop: 10,
-						alignItems: 'flex-start',
-					}}
+			</Link>
+			<div
+				style={{
+					display: 'flex',
+					gap: 10,
+					marginTop: 10,
+					alignItems: 'flex-start',
+				}}
+			>
+				<Link
+					href={`/en/channel/${video.uploader.id}`}
+					style={{ flexShrink: 0, textDecoration: 'none' }}
 				>
+					{video.uploader.avatar_url ? (
+						<img
+							src={video.uploader.avatar_url}
+							style={{
+								width: 36,
+								height: 36,
+								borderRadius: '50%',
+								objectFit: 'cover',
+							}}
+							alt=''
+						/>
+					) : (
+						<div
+							style={{
+								width: 36,
+								height: 36,
+								borderRadius: '50%',
+								background: color,
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								fontSize: 12,
+								fontWeight: 700,
+								color: '#fff',
+							}}
+						>
+							{initials}
+						</div>
+					)}
+				</Link>
+				<div style={{ flex: 1, minWidth: 0 }}>
 					<Link
-						href={`/en/channel/${video.uploader.id}`}
-						onClick={e => e.stopPropagation()}
-						style={{ flexShrink: 0, textDecoration: 'none' }}
+						href={`/en/watch/${video.id}`}
+						style={{ textDecoration: 'none' }}
 					>
-						{video.uploader.avatar_url ? (
-							<img
-								src={video.uploader.avatar_url}
-								style={{
-									width: 36,
-									height: 36,
-									borderRadius: '50%',
-									objectFit: 'cover',
-								}}
-								alt=''
-							/>
-						) : (
-							<div
-								style={{
-									width: 36,
-									height: 36,
-									borderRadius: '50%',
-									background: color,
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									fontSize: 12,
-									fontWeight: 700,
-									color: '#fff',
-								}}
-							>
-								{initials}
-							</div>
-						)}
-					</Link>
-					<div style={{ flex: 1, minWidth: 0 }}>
 						<p
 							style={{
 								fontSize: 14,
@@ -290,76 +295,78 @@ function VideoCard({ video }: { video: Video }) {
 						>
 							{video.title}
 						</p>
+					</Link>
+					<Link
+						href={`/en/channel/${video.uploader.id}`}
+						style={{ textDecoration: 'none' }}
+					>
 						<p style={{ fontSize: 13, color: '#999', margin: '0 0 1px' }}>
 							{video.uploader.username}
 						</p>
-						<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-							{fmtViews(video.views_count)} views · {timeAgo(video.created_at)}
-						</p>
-					</div>
-					{/* Kebab */}
-					<div style={{ position: 'relative', flexShrink: 0 }}>
-						<button
-							onClick={e => {
-								e.preventDefault()
-								e.stopPropagation()
-								setMenu(v => !v)
-							}}
-							style={{
-								width: 32,
-								height: 32,
-								borderRadius: '50%',
-								background: 'none',
-								border: 'none',
-								cursor: 'pointer',
-								color: '#777',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								opacity: hovered || menu ? 1 : 0,
-								transition: 'opacity .15s',
-							}}
-							onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
-							onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-						>
-							<svg
-								width='16'
-								height='16'
-								viewBox='0 0 24 24'
-								fill='currentColor'
-							>
-								<circle cx='12' cy='5' r='2' />
-								<circle cx='12' cy='12' r='2' />
-								<circle cx='12' cy='19' r='2' />
-							</svg>
-						</button>
-						{menu && (
-							<KebabMenu videoId={video.id} onClose={() => setMenu(false)} />
-						)}
-					</div>
+					</Link>
+					<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+						{fmtViews(video.views_count)} views · {timeAgo(video.created_at)}
+					</p>
 				</div>
-			</Link>
+				<div style={{ position: 'relative', flexShrink: 0 }}>
+					<button
+						onClick={e => {
+							e.preventDefault()
+							e.stopPropagation()
+							setMenu(v => !v)
+						}}
+						style={{
+							width: 32,
+							height: 32,
+							borderRadius: '50%',
+							background: 'none',
+							border: 'none',
+							cursor: 'pointer',
+							color: '#777',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+							opacity: hovered || menu ? 1 : 0,
+							transition: 'opacity .15s',
+						}}
+						onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
+						onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+					>
+						<svg width='16' height='16' viewBox='0 0 24 24' fill='currentColor'>
+							<circle cx='12' cy='5' r='2' />
+							<circle cx='12' cy='12' r='2' />
+							<circle cx='12' cy='19' r='2' />
+						</svg>
+					</button>
+					{menu && (
+						<KebabMenu videoId={video.id} onClose={() => setMenu(false)} />
+					)}
+				</div>
+			</div>
 		</div>
 	)
 }
 
-// ── Shorts card (9:16 thumbnail) ──────────────────────────────────────────────
+// ── Shorts card ───────────────────────────────────────────────────────────────
 function ShortsCard({ video }: { video: Video }) {
 	const [hovered, setHovered] = useState(false)
 	const [menu, setMenu] = useState(false)
 
 	return (
 		<div
-			style={{ flexShrink: 0, width: 168 }}
+			style={{ flexShrink: 0, width: 200 }}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 		>
-			<Link href={`/en/watch/${video.id}`} style={{ textDecoration: 'none' }}>
+			<Link
+				href={`/en/watch/${video.id}`}
+				style={{ textDecoration: 'none', display: 'block' }}
+			>
 				<div
 					style={{
 						position: 'relative',
-						width: 168,
-						height: 298,
+						width: 200,
+						height: 356,
 						borderRadius: 12,
 						overflow: 'hidden',
 						background: '#1a1a1a',
@@ -420,7 +427,6 @@ function ShortsCard({ video }: { video: Video }) {
 							</div>
 						</div>
 					)}
-					{/* views badge */}
 					<div
 						style={{
 							position: 'absolute',
@@ -436,7 +442,6 @@ function ShortsCard({ video }: { video: Video }) {
 					>
 						{fmtViews(video.views_count)} views
 					</div>
-					{/* kebab */}
 					<div style={{ position: 'absolute', top: 6, right: 6 }}>
 						<button
 							onClick={e => {
@@ -475,6 +480,8 @@ function ShortsCard({ video }: { video: Video }) {
 						)}
 					</div>
 				</div>
+			</Link>
+			<Link href={`/en/watch/${video.id}`} style={{ textDecoration: 'none' }}>
 				<p
 					style={{
 						fontSize: 13,
@@ -490,6 +497,11 @@ function ShortsCard({ video }: { video: Video }) {
 				>
 					{video.title}
 				</p>
+			</Link>
+			<Link
+				href={`/en/channel/${video.uploader.id}`}
+				style={{ textDecoration: 'none' }}
+			>
 				<p style={{ fontSize: 12, color: '#666', margin: 0 }}>
 					{video.uploader.username}
 				</p>
@@ -611,7 +623,6 @@ export default function Home() {
 		[],
 	)
 
-	// Initial / category change
 	useEffect(() => {
 		setLoading(true)
 		setFeed(null)
@@ -623,7 +634,6 @@ export default function Home() {
 			.finally(() => setLoading(false))
 	}, [cat, load])
 
-	// Infinite scroll
 	useEffect(() => {
 		observer.current?.disconnect()
 		if (!sentinel.current || !feed?.has_more) return
@@ -644,7 +654,6 @@ export default function Home() {
 		return () => observer.current?.disconnect()
 	}, [feed, loadingMore, cat, load])
 
-	// Build blocks: groups of normal videos separated by shorts shelves
 	const blocks = (() => {
 		if (!feed) return []
 		type B =
@@ -678,6 +687,46 @@ export default function Home() {
 				@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 				@keyframes spin{to{transform:rotate(360deg)}}
 				@keyframes pop{from{opacity:0;transform:scale(.95) translateY(-4px)}to{opacity:1;transform:scale(1) translateY(0)}}
+
+				/*
+				 * CSS container queries on the grid wrapper.
+				 * The wrapper's width = main content width, which already accounts
+				 * for whether the sidebar (220px) is open or closed.
+				 *
+				 * Sidebar open   → main ≈ viewport - 220px - 48px padding
+				 * Sidebar closed → main ≈ viewport - 48px padding
+				 *
+				 * At a 1440px viewport:
+				 *   open  → ~1172px → below 1270px breakpoint → 3 columns ✓
+				 *   closed → ~1392px → above 1270px breakpoint → 4 columns ✓
+				 */
+				.video-grid { container-type: inline-size; }
+
+				.video-grid-inner {
+					display: grid;
+					grid-template-columns: repeat(4, 1fr);
+					gap: 24px 16px;
+					margin-bottom: 36px;
+				}
+				@container (max-width: 1270px) {
+					.video-grid-inner { grid-template-columns: repeat(3, 1fr); }
+				}
+				@container (max-width: 860px) {
+					.video-grid-inner { grid-template-columns: repeat(2, 1fr); }
+				}
+
+				.skeleton-grid { container-type: inline-size; }
+				.skeleton-grid-inner {
+					display: grid;
+					grid-template-columns: repeat(4, 1fr);
+					gap: 20px 16px;
+				}
+				@container (max-width: 1270px) {
+					.skeleton-grid-inner { grid-template-columns: repeat(3, 1fr); }
+				}
+				@container (max-width: 860px) {
+					.skeleton-grid-inner { grid-template-columns: repeat(2, 1fr); }
+				}
 			`}</style>
 
 			{/* Category chips */}
@@ -715,16 +764,12 @@ export default function Home() {
 			</div>
 
 			{loading ? (
-				<div
-					style={{
-						display: 'grid',
-						gridTemplateColumns: 'repeat(auto-fill,minmax(270px,1fr))',
-						gap: '20px 16px',
-					}}
-				>
-					{Array.from({ length: 8 }).map((_, i) => (
-						<Skeleton key={i} />
-					))}
+				<div className='skeleton-grid'>
+					<div className='skeleton-grid-inner'>
+						{Array.from({ length: 8 }).map((_, i) => (
+							<Skeleton key={i} />
+						))}
+					</div>
 				</div>
 			) : !feed || feed.items.length === 0 ? (
 				<div style={{ textAlign: 'center', padding: '80px 20px' }}>
@@ -742,18 +787,12 @@ export default function Home() {
 						b.type === 'shorts' ? (
 							<ShortsShelf key={`s${i}`} videos={b.items} />
 						) : (
-							<div
-								key={`n${i}`}
-								style={{
-									display: 'grid',
-									gridTemplateColumns: 'repeat(auto-fill,minmax(270px,1fr))',
-									gap: '24px 16px',
-									marginBottom: 36,
-								}}
-							>
-								{b.items.map(v => (
-									<VideoCard key={v.id} video={v} />
-								))}
+							<div key={`n${i}`} className='video-grid'>
+								<div className='video-grid-inner'>
+									{b.items.map(v => (
+										<VideoCard key={v.id} video={v} />
+									))}
+								</div>
 							</div>
 						),
 					)}

@@ -18,14 +18,21 @@ const VIDEO_TYPES = [
 
 async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	const authRes = await fetch('/api/imagekit-auth')
+
 	if (!authRes.ok) {
 		const text = await authRes.text()
 		throw new Error(`Auth failed: ${text}`)
 	}
+
 	const { token, expire, signature } = await authRes.json()
+
 	const publicKey = process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!
 	const uploadEndpoint = process.env.NEXT_PUBLIC_IMAGEKIT_UPLOAD_ENDPOINT!
-	if (!uploadEndpoint) throw new Error('Upload endpoint missing')
+
+	if (!uploadEndpoint) {
+		throw new Error('Upload endpoint missing')
+	}
+
 	const form = new FormData()
 	form.append('file', file)
 	form.append('fileName', `${Date.now()}-${file.name}`)
@@ -34,15 +41,40 @@ async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	form.append('signature', signature)
 	form.append('expire', String(expire))
 	form.append('token', token)
+
 	const uploadRes = await fetch(`${uploadEndpoint}/api/v1/files/upload`, {
 		method: 'POST',
 		body: form,
 	})
+
 	if (!uploadRes.ok) {
 		const text = await uploadRes.text()
 		throw new Error(`Upload failed: ${text}`)
 	}
-	return (await uploadRes.json()).url
+
+	const data = await uploadRes.json()
+	return data.url
+}
+
+async function uploadVideoToR2(file: File): Promise<string> {
+	// Get presigned URL from your API
+	const res = await fetch('/api/r2-upload-url', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ filename: file.name, contentType: file.type }),
+	})
+	if (!res.ok) throw new Error('Failed to get upload URL')
+	const { data } = await res.json()
+
+	// Upload directly to R2 from the browser
+	const uploadRes = await fetch(data.uploadUrl, {
+		method: 'PUT',
+		body: file,
+		headers: { 'Content-Type': file.type },
+	})
+	if (!uploadRes.ok) throw new Error('Upload to R2 failed')
+
+	return data.publicUrl
 }
 
 interface VideoUploadFormProps {
@@ -57,7 +89,7 @@ export default function VideoUploadForm({
 	const { user } = useAuthContext()
 	const [title, setTitle] = useState('')
 	const [description, setDescription] = useState('')
-	const [category, setCategory] = useState<string | null>(null) // null = no category
+	const [category, setCategory] = useState<string | null>('No category')
 	const [videoType, setVideoType] = useState<'normal' | 'shorts'>('normal')
 	const [videoFile, setVideoFile] = useState<File | null>(null)
 	const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
@@ -75,7 +107,9 @@ export default function VideoUploadForm({
 		e.preventDefault()
 		setDragOver(false)
 		const file = e.dataTransfer.files[0]
-		if (file && file.type.startsWith('video/')) setVideoFile(file)
+		if (file && file.type.startsWith('video/')) {
+			setVideoFile(file)
+		}
 	}, [])
 
 	const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,6 +127,7 @@ export default function VideoUploadForm({
 
 		setError('')
 		setUploading(true)
+
 		try {
 			let thumbnail_url: string | undefined
 			if (thumbnailFile) {
@@ -101,10 +136,12 @@ export default function VideoUploadForm({
 				thumbnail_url = await uploadToImageKit(thumbnailFile, '/thumbnails')
 				setProgress(30)
 			}
+
 			setProgressLabel('Uploading video…')
 			setProgress(thumbnailFile ? 35 : 10)
-			const video_url = await uploadToImageKit(videoFile, '/videos')
+			const video_url = await uploadVideoToR2(videoFile)
 			setProgress(85)
+
 			setProgressLabel('Saving…')
 			const res = await fetch('/api/videos', {
 				method: 'POST',
@@ -114,12 +151,13 @@ export default function VideoUploadForm({
 					description: description.trim() || undefined,
 					thumbnail_url,
 					video_url,
-					category: category || null,
+					category: category ?? null,
 					video_type: videoType,
 				}),
 			})
 			const data = await res.json()
 			if (!res.ok) throw new Error(data.error || 'Failed to save video')
+
 			setProgress(100)
 			setProgressLabel('Done!')
 			setTimeout(() => {
@@ -455,23 +493,12 @@ export default function VideoUploadForm({
 						)}
 					</div>
 
-					{/* Category — optional */}
+					{/* Category */}
 					<div style={{ marginBottom: 16 }}>
-						<div
-							style={{
-								display: 'flex',
-								alignItems: 'center',
-								gap: 8,
-								marginBottom: 8,
-							}}
-						>
-							<label style={{ ...labelStyle, margin: 0 }}>Category</label>
-							<span style={{ fontSize: 11, color: '#444', fontWeight: 400 }}>
-								optional — shown as "All" if skipped
-							</span>
-						</div>
+						<label style={labelStyle}>
+							Category <span style={{ color: '#e63946' }}>*</span>
+						</label>
 						<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-							{/* "None" chip */}
 							<button
 								type='button'
 								onClick={() => setCategory(null)}
@@ -484,7 +511,7 @@ export default function VideoUploadForm({
 										category === null
 											? 'rgba(255,255,255,0.07)'
 											: 'transparent',
-									color: category === null ? '#ccc' : '#555',
+									color: category === null ? '#ccc' : '#888',
 									fontSize: 13,
 									cursor: uploading ? 'not-allowed' : 'pointer',
 									fontFamily: 'inherit',
@@ -633,6 +660,7 @@ export default function VideoUploadForm({
 						/>
 					</div>
 
+					{/* Error */}
 					{error && (
 						<div
 							style={{
@@ -649,6 +677,7 @@ export default function VideoUploadForm({
 						</div>
 					)}
 
+					{/* Actions */}
 					<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
 						<button
 							type='button'
