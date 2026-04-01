@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, lazy, Suspense } from 'react'
+import { useState, lazy, Suspense, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from '@/translations/translations'
@@ -10,9 +10,20 @@ import { useAuthContext } from '@/context/AuthContext'
 
 const VideoUploadForm = lazy(() => import('../video/VideoUploadForm'))
 
-/* ─────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────────────────────
+   TYPES
+───────────────────────────────────────────────────────────────────────────── */
+
+type SubscribedChannel = {
+	id: string
+	username: string
+	display_name?: string
+	avatar_url?: string
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    SIDEBAR DATA
-───────────────────────────────────────────── */
+───────────────────────────────────────────────────────────────────────────── */
 
 const mainNav = [
 	{
@@ -83,59 +94,25 @@ const youSection = [
 	},
 ]
 
-const navSection = [
-	{
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z' />
-			</svg>
-		),
-		label: 'Music',
-		href: '/en/category/music',
-	},
-	{
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18c.62-.39.62-1.29 0-1.69L9.54 5.98C8.87 5.55 8 6.03 8 6.82z' />
-			</svg>
-		),
-		label: 'Streams',
-		href: '/en/category/streams',
-	},
-	{
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M12 2a10 10 0 100 20 10 10 0 000-20zm1 14h-2v-2h2v2zm0-4h-2V6h2v6z' />
-			</svg>
-		),
-		label: 'News',
-		href: '/en/category/news',
-	},
-	{
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M21 16v-2l-6-3V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6l-6 3v2h22z' />
-			</svg>
-		),
-		label: 'Sports',
-		href: '/en/category/sport',
-	},
-	{
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M12 2l2 7h7l-5.5 4 2 7-5.5-4-5.5 4 2-7L3 9h7z' />
-			</svg>
-		),
-		label: 'Video Games',
-		href: '/en/category/videogames',
-	},
-]
-
 const languages = [
 	{ code: 'am', label: 'Հայերեն', flag: 'https://flagcdn.com/w20/am.png' },
 	{ code: 'ru', label: 'Русский', flag: 'https://flagcdn.com/w20/ru.png' },
 	{ code: 'gb', label: 'English', flag: 'https://flagcdn.com/w20/gb.png' },
 ]
+
+function colorFromId(id: string): string {
+	const colors = [
+		'#e63946',
+		'#2a9d8f',
+		'#e76f51',
+		'#457b9d',
+		'#6a4c93',
+		'#f4a261',
+	]
+	let hash = 0
+	for (const c of id) hash = (hash * 31 + c.charCodeAt(0)) | 0
+	return colors[Math.abs(hash) % colors.length]
+}
 
 function Chevron({ open }: { open: boolean }) {
 	return (
@@ -277,6 +254,55 @@ function Divider() {
 	)
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   CHANNEL AVATAR (mini, for subscriptions list)
+───────────────────────────────────────────────────────────────────────────── */
+
+function ChannelAvatar({ channel }: { channel: SubscribedChannel }) {
+	const name = channel.display_name || channel.username
+	const color = colorFromId(channel.id)
+	const initials = name.slice(0, 2).toUpperCase()
+
+	if (channel.avatar_url) {
+		return (
+			<img
+				src={channel.avatar_url}
+				alt={name}
+				style={{
+					width: 24,
+					height: 24,
+					borderRadius: '50%',
+					objectFit: 'cover',
+					flexShrink: 0,
+				}}
+			/>
+		)
+	}
+	return (
+		<div
+			style={{
+				width: 24,
+				height: 24,
+				borderRadius: '50%',
+				background: color,
+				display: 'flex',
+				alignItems: 'center',
+				justifyContent: 'center',
+				fontSize: 9,
+				fontWeight: 700,
+				color: '#fff',
+				flexShrink: 0,
+			}}
+		>
+			{initials}
+		</div>
+	)
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MAIN LAYOUT
+───────────────────────────────────────────────────────────────────────────── */
+
 export default function UserLayout({
 	children,
 }: {
@@ -288,16 +314,35 @@ export default function UserLayout({
 	const [searchFocused, setSearchFocused] = useState(false)
 	const [subsOpen, setSubsOpen] = useState(true)
 	const [youOpen, setYouOpen] = useState(true)
-	const [navOpen, setNavOpen] = useState(true)
 	const [langOpen, setLangOpen] = useState(false)
 	const [uploadOpen, setUploadOpen] = useState(false)
+
+	// Subscriptions data
+	const [subscribedChannels, setSubscribedChannels] = useState<
+		SubscribedChannel[]
+	>([])
 
 	const t = useTranslations()
 	const { language } = useLanguage()
 	const { user, isAuthenticated } = useAuthContext()
 
+	// Fetch subscriptions when user is authenticated
+	useEffect(() => {
+		if (!isAuthenticated) {
+			setSubscribedChannels([])
+			return
+		}
+		fetch('/api/me/subscriptions')
+			.then(r => r.json())
+			.then(data => {
+				if (data.ok) {
+					setSubscribedChannels(data.data.items.slice(0, 12))
+				}
+			})
+			.catch(() => {})
+	}, [isAuthenticated])
+
 	const handleUploadSuccess = () => {
-		// Trigger page refresh of video feed
 		window.location.reload()
 	}
 
@@ -554,7 +599,6 @@ export default function UserLayout({
 						flexShrink: 0,
 					}}
 				>
-					{/* Upload button — only shown when authenticated */}
 					{isAuthenticated && (
 						<button
 							onClick={() => setUploadOpen(true)}
@@ -596,7 +640,6 @@ export default function UserLayout({
 						</button>
 					)}
 
-					{/* Notifications */}
 					<button
 						style={{
 							position: 'relative',
@@ -670,6 +713,7 @@ export default function UserLayout({
 							gap: 2,
 						}}
 					>
+						{/* Main nav */}
 						{mainNav.map(item => (
 							<NavItem
 								key={item.label}
@@ -677,7 +721,10 @@ export default function UserLayout({
 								active={pathname === item.href}
 							/>
 						))}
+
 						<Divider />
+
+						{/* You section */}
 						<SectionLabel
 							label='You'
 							open={youOpen}
@@ -694,24 +741,167 @@ export default function UserLayout({
 								))}
 							</div>
 						)}
+
 						<Divider />
+
+						{/* Subscriptions section */}
 						<SectionLabel
-							label='Explore'
-							open={navOpen}
-							onToggle={() => setNavOpen(v => !v)}
+							label='Subscriptions'
+							open={subsOpen}
+							onToggle={() => setSubsOpen(v => !v)}
 						/>
-						{navOpen && (
+						{subsOpen && (
 							<div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-								{navSection.map(item => (
-									<NavItem
-										key={item.label}
-										{...item}
-										active={pathname === item.href}
-									/>
-								))}
+								{!isAuthenticated ? (
+									<div style={{ padding: '8px 12px' }}>
+										<p
+											style={{
+												fontSize: 11,
+												color: '#444',
+												margin: '0 0 8px',
+												lineHeight: 1.5,
+											}}
+										>
+											Sign in to see your subscriptions.
+										</p>
+										<Link
+											href='/en/login'
+											style={{
+												display: 'inline-flex',
+												alignItems: 'center',
+												gap: 6,
+												padding: '6px 12px',
+												borderRadius: 20,
+												border: '1px solid #2a2a2a',
+												color: '#888',
+												fontSize: 12,
+												fontWeight: 600,
+												textDecoration: 'none',
+												transition: 'all 0.15s',
+											}}
+										>
+											Sign in
+										</Link>
+									</div>
+								) : subscribedChannels.length === 0 ? (
+									<div style={{ padding: '8px 12px' }}>
+										<p
+											style={{
+												fontSize: 11,
+												color: '#444',
+												lineHeight: 1.5,
+												margin: 0,
+											}}
+										>
+											You haven&apos;t subscribed to any channels yet.
+										</p>
+									</div>
+								) : (
+									<>
+										{subscribedChannels.map(channel => {
+											const name = channel.display_name || channel.username
+											const href = `/en/channel/${channel.id}`
+											const isActive = pathname === href
+											return (
+												<Link
+													key={channel.id}
+													href={href}
+													style={{
+														display: 'flex',
+														alignItems: 'center',
+														gap: 10,
+														padding: '8px 12px',
+														borderRadius: 10,
+														textDecoration: 'none',
+														color: isActive ? '#fff' : '#888',
+														background: isActive
+															? 'rgba(230,57,70,0.08)'
+															: 'transparent',
+														transition: 'background 0.15s, color 0.15s',
+														position: 'relative',
+													}}
+													onMouseEnter={e => {
+														if (!isActive) {
+															e.currentTarget.style.background =
+																'rgba(255,255,255,0.05)'
+															e.currentTarget.style.color = '#ccc'
+														}
+													}}
+													onMouseLeave={e => {
+														if (!isActive) {
+															e.currentTarget.style.background = 'transparent'
+															e.currentTarget.style.color = '#888'
+														}
+													}}
+												>
+													{isActive && (
+														<span
+															style={{
+																position: 'absolute',
+																left: 0,
+																top: '50%',
+																transform: 'translateY(-50%)',
+																width: 3,
+																height: 14,
+																background: '#e63946',
+																borderRadius: '0 2px 2px 0',
+															}}
+														/>
+													)}
+													<ChannelAvatar channel={channel} />
+													<span
+														style={{
+															fontSize: 13,
+															fontWeight: isActive ? 600 : 400,
+															overflow: 'hidden',
+															textOverflow: 'ellipsis',
+															whiteSpace: 'nowrap',
+															flex: 1,
+														}}
+													>
+														{name}
+													</span>
+												</Link>
+											)
+										})}
+										{/* View all subscriptions link */}
+										<Link
+											href='/en/subscriptions'
+											style={{
+												display: 'flex',
+												alignItems: 'center',
+												gap: 10,
+												padding: '8px 12px',
+												borderRadius: 10,
+												textDecoration: 'none',
+												color: '#555',
+												transition: 'color 0.15s',
+												fontSize: 12,
+											}}
+											onMouseEnter={e =>
+												(e.currentTarget.style.color = '#e63946')
+											}
+											onMouseLeave={e => (e.currentTarget.style.color = '#555')}
+										>
+											<svg
+												width='16'
+												height='16'
+												viewBox='0 0 24 24'
+												fill='currentColor'
+												style={{ flexShrink: 0 }}
+											>
+												<path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z' />
+											</svg>
+											<span>View all</span>
+										</Link>
+									</>
+								)}
 							</div>
 						)}
+
 						<Divider />
+
+						{/* Languages section */}
 						<SectionLabel
 							label='Languages'
 							open={langOpen}
@@ -757,6 +947,7 @@ export default function UserLayout({
 								))}
 							</div>
 						)}
+
 						<div style={{ padding: '24px 12px 0', marginTop: 8 }}>
 							<p
 								style={{

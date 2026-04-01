@@ -6,7 +6,8 @@ import Link from 'next/link'
 import UserLayout from '@/app/_components/layout/UserLayout'
 import { useAuthContext } from '@/context/AuthContext'
 import VideoPlayer from '@/app/_components/video/VideoPlayer'
-import { Clock, ListVideo, Share2, ThumbsUp } from 'lucide-react'
+import { Clock, ListVideo, Share2, ThumbsUp, ThumbsDown } from 'lucide-react'
+import PlaylistPicker from '@/app/_components/video/PlaylistPicker'
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPES
@@ -22,6 +23,7 @@ type Video = {
 	video_type: 'normal' | 'shorts' | null
 	views_count: number
 	likes_count: number
+	dislikes_count: number
 	created_at: string
 	username: string
 	display_name: string | null
@@ -133,7 +135,7 @@ function Avatar({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   RELATED VIDEO CARD — YouTube sidebar style
+   RELATED VIDEO CARD
 ───────────────────────────────────────────────────────────────────────────── */
 
 function RelatedCard({ video }: { video: Related }) {
@@ -969,7 +971,7 @@ function ShortsPlayer({ v, related }: { v: Video; related: Related[] }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   NORMAL PLAYER — full-bleed two-column layout
+   NORMAL PLAYER — two-column layout
 ───────────────────────────────────────────────────────────────────────────── */
 
 function NormalPlayer({
@@ -983,15 +985,31 @@ function NormalPlayer({
 }) {
 	const name = v.display_name || v.username
 	const [liked, setLiked] = useState(false)
+	const [disliked, setDisliked] = useState(false)
 	const [likesCount, setLikesCount] = useState(v.likes_count)
+	const [dislikesCount, setDislikesCount] = useState(v.dislikes_count ?? 0)
 	const [subscribed, setSubscribed] = useState(false)
 	const [subscribersCount, setSubscribersCount] = useState(0)
 	const [subLoading, setSubLoading] = useState(false)
 	const [descExpanded, setDescExpanded] = useState(false)
 	const [copied, setCopied] = useState(false)
+	const [playlistOpen, setPlaylistOpen] = useState(false)
 	const isOwn = currentUser?.id === v.user_id
 
+	// Load initial reaction state + subscription state
 	useEffect(() => {
+		fetch(`/api/videos/${v.id}/like`)
+			.then(r => r.json())
+			.then(data => {
+				if (data.ok) {
+					setLiked(data.data.liked)
+					setDisliked(data.data.disliked)
+					setLikesCount(data.data.likes_count)
+					setDislikesCount(data.data.dislikes_count)
+				}
+			})
+			.catch(() => {})
+
 		fetch(`/api/users/${v.user_id}/subscribe`)
 			.then(r => r.json())
 			.then(data => {
@@ -1001,16 +1019,63 @@ function NormalPlayer({
 				}
 			})
 			.catch(() => {})
-	}, [v.user_id])
+	}, [v.id, v.user_id])
 
-	async function toggleLike() {
+	async function handleReaction(action: 'like' | 'dislike') {
 		if (!currentUser) {
 			window.location.href = '/en/login'
 			return
 		}
-		setLiked(x => !x)
-		setLikesCount(prev => (liked ? prev - 1 : prev + 1))
-		await fetch(`/api/videos/${v.id}/like`, { method: 'POST' }).catch(() => {})
+
+		// Optimistic update
+		const wasLiked = liked
+		const wasDisliked = disliked
+
+		if (action === 'like') {
+			const newLiked = !liked
+			setLiked(newLiked)
+			setLikesCount(prev => (newLiked ? prev + 1 : prev - 1))
+			if (wasDisliked) {
+				setDisliked(false)
+				setDislikesCount(prev => prev - 1)
+			}
+		} else {
+			const newDisliked = !disliked
+			setDisliked(newDisliked)
+			setDislikesCount(prev => (newDisliked ? prev + 1 : prev - 1))
+			if (wasLiked) {
+				setLiked(false)
+				setLikesCount(prev => prev - 1)
+			}
+		}
+
+		try {
+			const res = await fetch(`/api/videos/${v.id}/like`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action }),
+			})
+			const data = await res.json()
+			if (data.ok) {
+				// Sync with server truth
+				setLiked(data.data.liked)
+				setDisliked(data.data.disliked)
+				setLikesCount(data.data.likes_count)
+				setDislikesCount(data.data.dislikes_count)
+			} else {
+				// Revert on error
+				setLiked(wasLiked)
+				setDisliked(wasDisliked)
+				setLikesCount(v.likes_count)
+				setDislikesCount(v.dislikes_count ?? 0)
+			}
+		} catch {
+			// Revert on error
+			setLiked(wasLiked)
+			setDisliked(wasDisliked)
+			setLikesCount(v.likes_count)
+			setDislikesCount(v.dislikes_count ?? 0)
+		}
 	}
 
 	async function toggleSubscribe() {
@@ -1044,343 +1109,388 @@ function NormalPlayer({
 	const sidebarVideos = related.filter(r => r.id !== v.id).slice(0, 22)
 
 	return (
-		/*
-      KEY: negative margin + adjusted padding + calc width
-      This breaks the component out of UserLayout's 32px 24px padding
-      so the layout fills the full available content area.
-      The sidebar is fixed at 400px — matching YouTube's ~402px sidebar.
-    */
-		<div
-			style={{
-				display: 'flex',
-				gap: 24,
-				alignItems: 'flex-start',
-				margin: '-32px -24px',
-				padding: '24px 24px 64px',
-				boxSizing: 'border-box',
-				width: 'calc(100% + 48px)',
-			}}
-		>
-			{/* ── LEFT: player + info + comments ── */}
-			<div style={{ flex: 1, minWidth: 0 }}>
-				{/* PLAYER — custom player fills entire left column */}
-				<VideoPlayer
-					src={v.video_url}
-					poster={v.thumbnail_url}
-					title={v.title}
-				/>
+		<>
+			<div
+				style={{
+					display: 'flex',
+					gap: 24,
+					alignItems: 'flex-start',
+					margin: '-32px -24px',
+					padding: '24px 24px 64px',
+					boxSizing: 'border-box',
+					width: 'calc(100% + 48px)',
+				}}
+			>
+				{/* ── LEFT ── */}
+				<div style={{ flex: 1, minWidth: 0 }}>
+					<VideoPlayer
+						src={v.video_url}
+						poster={v.thumbnail_url}
+						title={v.title}
+					/>
 
-				{/* TITLE */}
-				<h1
-					style={{
-						fontSize: 22,
-						fontWeight: 700,
-						color: '#fff',
-						margin: '16px 0 14px',
-						lineHeight: 1.3,
-						letterSpacing: '-0.3px',
-					}}
-				>
-					{v.title}
-				</h1>
-
-				{/* CHANNEL + ACTIONS */}
-				<div
-					style={{
-						display: 'flex',
-						alignItems: 'center',
-						gap: 14,
-						flexWrap: 'wrap',
-						paddingBottom: 16,
-						borderBottom: '1px solid #1e1e1e',
-					}}
-				>
-					<Link
-						href={`/en/channel/${v.user_id}`}
+					<h1
 						style={{
-							textDecoration: 'none',
-							display: 'flex',
-							alignItems: 'center',
-							gap: 11,
+							fontSize: 22,
+							fontWeight: 700,
+							color: '#fff',
+							margin: '16px 0 14px',
+							lineHeight: 1.3,
+							letterSpacing: '-0.3px',
 						}}
 					>
-						<Avatar url={v.avatar_url} name={name} id={v.user_id} size={44} />
-						<div>
-							<p
-								style={{
-									fontSize: 15,
-									fontWeight: 700,
-									color: '#fff',
-									margin: 0,
-								}}
-							>
-								{name}
-							</p>
-							<p style={{ fontSize: 12, color: '#666', margin: 0 }}>
-								{fmt(subscribersCount)} subscribers
-							</p>
-						</div>
-					</Link>
+						{v.title}
+					</h1>
 
-					{!isOwn && (
-						<button
-							onClick={toggleSubscribe}
-							disabled={subLoading}
-							style={{
-								padding: '9px 22px',
-								borderRadius: 24,
-								border: subscribed ? '1px solid #333' : 'none',
-								background: subscribed ? 'rgba(255,255,255,0.06)' : '#fff',
-								color: subscribed ? '#ccc' : '#000',
-								fontSize: 14,
-								fontWeight: 700,
-								cursor: subLoading ? 'not-allowed' : 'pointer',
-								opacity: subLoading ? 0.7 : 1,
-								fontFamily: 'inherit',
-								transition: 'all 0.15s',
-							}}
-						>
-							{subLoading ? '…' : subscribed ? '✓ Subscribed' : 'Subscribe'}
-						</button>
-					)}
-
-					<div style={{ flex: 1 }} />
-
-					{/* Action pills */}
-					<div style={{ display: 'flex', gap: 8 }}>
-						<button
-							onClick={toggleLike}
-							style={{
-								display: 'flex',
-								alignItems: 'center',
-								gap: 8,
-								padding: '9px 20px',
-								borderRadius: 24,
-								border: `1px solid ${liked ? 'rgba(230,57,70,0.4)' : '#2a2a2a'}`,
-								background: liked ? 'rgba(230,57,70,0.12)' : '#1a1a1a',
-								color: liked ? '#e63946' : '#ccc',
-								fontSize: 14,
-								fontWeight: 600,
-								cursor: 'pointer',
-								fontFamily: 'inherit',
-								transition: 'all 0.15s',
-							}}
-						>
-							<ThumbsUp size={20} />
-							{fmt(likesCount)}
-						</button>
-						<button
-							onClick={async () => {
-								if (!currentUser) {
-									window.location.href = '/en/login'
-									return
-								}
-								await fetch('/api/me/watch-later', {
-									method: 'POST',
-									headers: { 'Content-Type': 'application/json' },
-									body: JSON.stringify({ video_id: v.id }),
-								}).catch(() => {})
-							}}
-							style={{
-								display: 'flex',
-								alignItems: 'center',
-								gap: 8,
-								padding: '9px 20px',
-								borderRadius: 24,
-								border: '1px solid #2a2a2a',
-								background: '#1a1a1a',
-								color: '#ccc',
-								fontSize: 14,
-								fontWeight: 600,
-								cursor: 'pointer',
-								fontFamily: 'inherit',
-								transition: 'all 0.15s',
-							}}
-							onMouseEnter={e => {
-								e.currentTarget.style.borderColor = '#444'
-								e.currentTarget.style.color = '#fff'
-							}}
-							onMouseLeave={e => {
-								e.currentTarget.style.borderColor = '#2a2a2a'
-								e.currentTarget.style.color = '#ccc'
-							}}
-						>
-							<Clock size={20} />
-							Watch Later
-						</button>
-						<button
-							onClick={async () => {
-								if (!currentUser) {
-									window.location.href = '/en/login'
-									return
-								}
-								await fetch('/api/me/watch-later', {
-									method: 'POST',
-									headers: { 'Content-Type': 'application/json' },
-									body: JSON.stringify({ video_id: v.id }),
-								}).catch(() => {})
-							}}
-							style={{
-								display: 'flex',
-								alignItems: 'center',
-								gap: 8,
-								padding: '9px 20px',
-								borderRadius: 24,
-								border: '1px solid #2a2a2a',
-								background: '#1a1a1a',
-								color: '#ccc',
-								fontSize: 14,
-								fontWeight: 600,
-								cursor: 'pointer',
-								fontFamily: 'inherit',
-								transition: 'all 0.15s',
-							}}
-							onMouseEnter={e => {
-								e.currentTarget.style.borderColor = '#444'
-								e.currentTarget.style.color = '#fff'
-							}}
-							onMouseLeave={e => {
-								e.currentTarget.style.borderColor = '#2a2a2a'
-								e.currentTarget.style.color = '#ccc'
-							}}
-						>
-							<ListVideo size={20} />
-							Add to Playlist
-						</button>
-						<button
-							onClick={copyLink}
-							style={{
-								display: 'flex',
-								alignItems: 'center',
-								gap: 8,
-								padding: '9px 20px',
-								borderRadius: 24,
-								border: `1px solid ${copied ? '#2a9d8f' : '#2a2a2a'}`,
-								background: copied ? 'rgba(42,157,143,0.12)' : '#1a1a1a',
-								color: copied ? '#2a9d8f' : '#ccc',
-								fontSize: 14,
-								fontWeight: 600,
-								cursor: 'pointer',
-								fontFamily: 'inherit',
-								transition: 'all 0.15s',
-							}}
-						>
-							<Share2 size={18} />
-							{copied ? 'Copied!' : 'Share'}
-						</button>
-					</div>
-				</div>
-
-				{/* DESCRIPTION BOX */}
-				<div
-					style={{
-						marginTop: 14,
-						background: '#111',
-						borderRadius: 14,
-						padding: '14px 18px',
-						border: '1px solid #1a1a1a',
-						cursor: v.description ? 'pointer' : 'default',
-						transition: 'border-color 0.15s',
-					}}
-					onClick={() => v.description && setDescExpanded(x => !x)}
-					onMouseEnter={e => {
-						if (v.description) e.currentTarget.style.borderColor = '#2a2a2a'
-					}}
-					onMouseLeave={e => {
-						e.currentTarget.style.borderColor = '#1a1a1a'
-					}}
-				>
+					{/* CHANNEL + ACTIONS */}
 					<div
 						style={{
 							display: 'flex',
-							gap: 14,
 							alignItems: 'center',
-							marginBottom: v.description ? 10 : 0,
+							gap: 14,
+							flexWrap: 'wrap',
+							paddingBottom: 16,
+							borderBottom: '1px solid #1e1e1e',
 						}}
 					>
-						<span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
-							{fmt(v.views_count)} views
-						</span>
-						<span style={{ fontSize: 13, color: '#666' }}>
-							{longDate(v.created_at)}
-						</span>
-						{v.category && (
-							<span
+						<Link
+							href={`/en/channel/${v.user_id}`}
+							style={{
+								textDecoration: 'none',
+								display: 'flex',
+								alignItems: 'center',
+								gap: 11,
+							}}
+						>
+							<Avatar url={v.avatar_url} name={name} id={v.user_id} size={44} />
+							<div>
+								<p
+									style={{
+										fontSize: 15,
+										fontWeight: 700,
+										color: '#fff',
+										margin: 0,
+									}}
+								>
+									{name}
+								</p>
+								<p style={{ fontSize: 12, color: '#666', margin: 0 }}>
+									{fmt(subscribersCount)} subscribers
+								</p>
+							</div>
+						</Link>
+
+						{!isOwn && (
+							<button
+								onClick={toggleSubscribe}
+								disabled={subLoading}
 								style={{
-									fontSize: 12,
-									color: '#888',
-									background: '#1e1e1e',
-									padding: '2px 10px',
-									borderRadius: 6,
-									textTransform: 'capitalize',
+									padding: '9px 22px',
+									borderRadius: 24,
+									border: subscribed ? '1px solid #333' : 'none',
+									background: subscribed ? 'rgba(255,255,255,0.06)' : '#fff',
+									color: subscribed ? '#ccc' : '#000',
+									fontSize: 14,
+									fontWeight: 700,
+									cursor: subLoading ? 'not-allowed' : 'pointer',
+									opacity: subLoading ? 0.7 : 1,
+									fontFamily: 'inherit',
+									transition: 'all 0.15s',
 								}}
 							>
-								{v.category}
-							</span>
+								{subLoading ? '…' : subscribed ? '✓ Subscribed' : 'Subscribe'}
+							</button>
 						)}
+
+						<div style={{ flex: 1 }} />
+
+						{/* Action pills */}
+						<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+							{/* Like / Dislike grouped pill */}
+							<div
+								style={{
+									display: 'flex',
+									borderRadius: 24,
+									overflow: 'hidden',
+									border: '1px solid #2a2a2a',
+								}}
+							>
+								{/* Like */}
+								<button
+									onClick={() => handleReaction('like')}
+									style={{
+										display: 'flex',
+										alignItems: 'center',
+										gap: 8,
+										padding: '9px 18px',
+										background: liked ? 'rgba(230,57,70,0.15)' : '#1a1a1a',
+										color: liked ? '#e63946' : '#ccc',
+										fontSize: 14,
+										fontWeight: 600,
+										cursor: 'pointer',
+										fontFamily: 'inherit',
+										border: 'none',
+										borderRight: '1px solid #2a2a2a',
+										transition: 'all 0.15s',
+									}}
+									title='Like'
+								>
+									<ThumbsUp size={18} fill={liked ? 'currentColor' : 'none'} />
+									{fmt(likesCount)}
+								</button>
+								{/* Dislike */}
+								<button
+									onClick={() => handleReaction('dislike')}
+									style={{
+										display: 'flex',
+										alignItems: 'center',
+										gap: 8,
+										padding: '9px 18px',
+										background: disliked ? 'rgba(100,100,255,0.12)' : '#1a1a1a',
+										color: disliked ? '#8888ff' : '#ccc',
+										fontSize: 14,
+										fontWeight: 600,
+										cursor: 'pointer',
+										fontFamily: 'inherit',
+										border: 'none',
+										transition: 'all 0.15s',
+									}}
+									title='Dislike'
+								>
+									<ThumbsDown
+										size={18}
+										fill={disliked ? 'currentColor' : 'none'}
+									/>
+									{dislikesCount > 0 && fmt(dislikesCount)}
+								</button>
+							</div>
+
+							<button
+								onClick={async () => {
+									if (!currentUser) {
+										window.location.href = '/en/login'
+										return
+									}
+									await fetch('/api/me/watch-later', {
+										method: 'POST',
+										headers: { 'Content-Type': 'application/json' },
+										body: JSON.stringify({ video_id: v.id }),
+									}).catch(() => {})
+								}}
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: 8,
+									padding: '9px 20px',
+									borderRadius: 24,
+									border: '1px solid #2a2a2a',
+									background: '#1a1a1a',
+									color: '#ccc',
+									fontSize: 14,
+									fontWeight: 600,
+									cursor: 'pointer',
+									fontFamily: 'inherit',
+									transition: 'all 0.15s',
+								}}
+								onMouseEnter={e => {
+									e.currentTarget.style.borderColor = '#444'
+									e.currentTarget.style.color = '#fff'
+								}}
+								onMouseLeave={e => {
+									e.currentTarget.style.borderColor = '#2a2a2a'
+									e.currentTarget.style.color = '#ccc'
+								}}
+							>
+								<Clock size={18} />
+								Watch Later
+							</button>
+
+							<button
+								onClick={() => {
+									if (!currentUser) {
+										window.location.href = '/en/login'
+										return
+									}
+									setPlaylistOpen(true)
+								}}
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: 8,
+									padding: '9px 20px',
+									borderRadius: 24,
+									border: '1px solid #2a2a2a',
+									background: '#1a1a1a',
+									color: '#ccc',
+									fontSize: 14,
+									fontWeight: 600,
+									cursor: 'pointer',
+									fontFamily: 'inherit',
+									transition: 'all 0.15s',
+								}}
+								onMouseEnter={e => {
+									e.currentTarget.style.borderColor = '#444'
+									e.currentTarget.style.color = '#fff'
+								}}
+								onMouseLeave={e => {
+									e.currentTarget.style.borderColor = '#2a2a2a'
+									e.currentTarget.style.color = '#ccc'
+								}}
+							>
+								<ListVideo size={18} />
+								Add to Playlist
+							</button>
+
+							<button
+								onClick={copyLink}
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: 8,
+									padding: '9px 20px',
+									borderRadius: 24,
+									border: `1px solid ${copied ? '#2a9d8f' : '#2a2a2a'}`,
+									background: copied ? 'rgba(42,157,143,0.12)' : '#1a1a1a',
+									color: copied ? '#2a9d8f' : '#ccc',
+									fontSize: 14,
+									fontWeight: 600,
+									cursor: 'pointer',
+									fontFamily: 'inherit',
+									transition: 'all 0.15s',
+								}}
+							>
+								<Share2 size={18} />
+								{copied ? 'Copied!' : 'Share'}
+							</button>
+						</div>
 					</div>
-					{v.description && (
-						<>
+
+					{/* DESCRIPTION BOX */}
+					<div
+						style={{
+							marginTop: 14,
+							background: '#111',
+							borderRadius: 14,
+							padding: '14px 18px',
+							border: '1px solid #1a1a1a',
+							cursor: v.description ? 'pointer' : 'default',
+							transition: 'border-color 0.15s',
+						}}
+						onClick={() => v.description && setDescExpanded(x => !x)}
+						onMouseEnter={e => {
+							if (v.description) e.currentTarget.style.borderColor = '#2a2a2a'
+						}}
+						onMouseLeave={e => {
+							e.currentTarget.style.borderColor = '#1a1a1a'
+						}}
+					>
+						<div
+							style={{
+								display: 'flex',
+								gap: 14,
+								alignItems: 'center',
+								marginBottom: 10,
+							}}
+						>
+							<span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+								{v.views_count.toLocaleString()} views
+							</span>
+							<span style={{ fontSize: 13, color: '#666' }}>
+								{longDate(v.created_at)}
+							</span>
+							{v.category && (
+								<span
+									style={{
+										fontSize: 12,
+										color: '#888',
+										background: '#1e1e1e',
+										padding: '2px 10px',
+										borderRadius: 6,
+										textTransform: 'capitalize',
+									}}
+								>
+									{v.category}
+								</span>
+							)}
+						</div>
+						{v.description ? (
+							<>
+								<p
+									style={{
+										fontSize: 14,
+										color: '#aaa',
+										lineHeight: 1.7,
+										margin: 0,
+										display: descExpanded ? 'block' : '-webkit-box',
+										WebkitLineClamp: descExpanded ? undefined : 3,
+										WebkitBoxOrient: 'vertical' as const,
+										overflow: descExpanded ? 'visible' : 'hidden',
+										whiteSpace: 'pre-wrap',
+									}}
+								>
+									{v.description}
+								</p>
+								<button
+									style={{
+										background: 'none',
+										border: 'none',
+										color: '#fff',
+										fontSize: 13,
+										fontWeight: 700,
+										cursor: 'pointer',
+										padding: '8px 0 0',
+										fontFamily: 'inherit',
+									}}
+								>
+									{descExpanded ? 'Show less' : 'Show more'}
+								</button>
+							</>
+						) : (
 							<p
 								style={{
 									fontSize: 14,
-									color: '#aaa',
-									lineHeight: 1.7,
+									color: '#444',
 									margin: 0,
-									display: descExpanded ? 'block' : '-webkit-box',
-									WebkitLineClamp: descExpanded ? undefined : 3,
-									WebkitBoxOrient: 'vertical' as const,
-									overflow: descExpanded ? 'visible' : 'hidden',
-									whiteSpace: 'pre-wrap',
+									fontStyle: 'italic',
 								}}
 							>
-								{v.description}
+								No description provided.
 							</p>
-							<button
-								style={{
-									background: 'none',
-									border: 'none',
-									color: '#fff',
-									fontSize: 13,
-									fontWeight: 700,
-									cursor: 'pointer',
-									padding: '8px 0 0',
-									fontFamily: 'inherit',
-								}}
-							>
-								{descExpanded ? 'Show less' : 'Show more'}
-							</button>
-						</>
-					)}
+						)}
+					</div>
+
+					{/* COMMENTS */}
+					<CommentsSection videoId={v.id} currentUser={currentUser} />
 				</div>
 
-				{/* COMMENTS */}
-				<CommentsSection videoId={v.id} currentUser={currentUser} />
+				{/* ── RIGHT: sidebar ── */}
+				<aside style={{ width: 400, flexShrink: 0, paddingTop: 2 }}>
+					<p
+						style={{
+							fontSize: 12,
+							fontWeight: 700,
+							color: '#555',
+							letterSpacing: '1px',
+							textTransform: 'uppercase',
+							margin: '0 0 14px',
+						}}
+					>
+						Up Next
+					</p>
+					<div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+						{sidebarVideos.length === 0 ? (
+							<p style={{ fontSize: 13, color: '#444' }}>No related videos</p>
+						) : (
+							sidebarVideos.map(r => <RelatedCard key={r.id} video={r} />)
+						)}
+					</div>
+				</aside>
 			</div>
 
-			{/* ── RIGHT: sidebar — fixed 400px ── */}
-			<aside style={{ width: 400, flexShrink: 0, paddingTop: 2 }}>
-				<p
-					style={{
-						fontSize: 12,
-						fontWeight: 700,
-						color: '#555',
-						letterSpacing: '1px',
-						textTransform: 'uppercase',
-						margin: '0 0 14px',
-					}}
-				>
-					Up Next
-				</p>
-				<div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-					{sidebarVideos.length === 0 ? (
-						<p style={{ fontSize: 13, color: '#444' }}>No related videos</p>
-					) : (
-						sidebarVideos.map(r => <RelatedCard key={r.id} video={r} />)
-					)}
-				</div>
-			</aside>
-		</div>
+			{playlistOpen && (
+				<PlaylistPicker videoId={v.id} onClose={() => setPlaylistOpen(false)} />
+			)}
+		</>
 	)
 }
 

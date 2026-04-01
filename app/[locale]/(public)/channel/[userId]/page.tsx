@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import UserLayout from '@/app/_components/layout/UserLayout'
 import { useAuthContext } from '@/context/AuthContext'
 
@@ -27,16 +28,20 @@ type Video = {
 	duration?: string
 }
 
-type Tab = 'videos' | 'about'
-
-/* ─── Helpers ─── */
-function formatViews(n: number): string {
-	if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-	if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
-	return String(n)
+type Playlist = {
+	id: string
+	title: string
+	description: string | null
+	visibility: 'public' | 'private'
+	video_count: number
+	cover_thumbnail: string | null
+	updated_at: string
 }
 
-function formatSubs(n: number): string {
+type Tab = 'videos' | 'playlists' | 'about'
+
+/* ─── Helpers ─── */
+function fmt(n: number): string {
 	if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
 	if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
 	return String(n)
@@ -80,44 +85,22 @@ function colorFromId(id: string): string {
 
 async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	const authRes = await fetch('/api/imagekit-auth')
-
-	if (!authRes.ok) {
-		const text = await authRes.text()
-		throw new Error(`Auth failed: ${text}`)
-	}
-
+	if (!authRes.ok) throw new Error(`Auth failed: ${await authRes.text()}`)
 	const { token, expire, signature } = await authRes.json()
-
-	const publicKey = process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!
-	const uploadEndpoint = process.env.NEXT_PUBLIC_IMAGEKIT_UPLOAD_ENDPOINT!
-
-	if (!uploadEndpoint) {
-		throw new Error('Upload endpoint missing')
-	}
-
 	const form = new FormData()
 	form.append('file', file)
 	form.append('fileName', `${Date.now()}-${file.name}`)
 	form.append('folder', folder)
-
-	form.append('publicKey', publicKey)
+	form.append('publicKey', process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!)
 	form.append('signature', signature)
 	form.append('expire', String(expire))
 	form.append('token', token)
-
-	const uploadRes = await fetch(`${uploadEndpoint}/api/v1/files/upload`, {
-		method: 'POST',
-		body: form,
-	})
-
-	if (!uploadRes.ok) {
-		const text = await uploadRes.text()
-		throw new Error(`Upload failed: ${text}`)
-	}
-
-	const data = await uploadRes.json()
-
-	return data.url
+	const uploadRes = await fetch(
+		`${process.env.NEXT_PUBLIC_IMAGEKIT_UPLOAD_ENDPOINT!}/api/v1/files/upload`,
+		{ method: 'POST', body: form },
+	)
+	if (!uploadRes.ok) throw new Error(`Upload failed: ${await uploadRes.text()}`)
+	return (await uploadRes.json()).url
 }
 
 /* ─── VideoCard ─── */
@@ -170,7 +153,6 @@ function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
 						</svg>
 					</div>
 				)}
-				{/* Play overlay */}
 				{hovered && (
 					<div
 						style={{
@@ -234,10 +216,157 @@ function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
 					{video.title}
 				</p>
 				<p style={{ fontSize: 12, color: '#888' }}>
-					{formatViews(video.views_count)} views · {timeAgo(video.created_at)}
+					{fmt(video.views_count)} views · {timeAgo(video.created_at)}
 				</p>
 			</div>
 		</div>
+	)
+}
+
+/* ─── PlaylistCard ─── */
+function PlaylistCard({ playlist }: { playlist: Playlist }) {
+	const [hovered, setHovered] = useState(false)
+	return (
+		<Link
+			href={`/en/playlists/${playlist.id}`}
+			style={{ textDecoration: 'none', display: 'block' }}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+		>
+			{/* Thumbnail */}
+			<div
+				style={{
+					position: 'relative',
+					width: '100%',
+					paddingBottom: '56.25%',
+					borderRadius: 10,
+					overflow: 'hidden',
+					background: '#1a1a1a',
+					marginBottom: 10,
+				}}
+			>
+				{playlist.cover_thumbnail ? (
+					<img
+						src={playlist.cover_thumbnail}
+						alt={playlist.title}
+						style={{
+							position: 'absolute',
+							inset: 0,
+							width: '100%',
+							height: '100%',
+							objectFit: 'cover',
+							transform: hovered ? 'scale(1.04)' : 'scale(1)',
+							transition: 'transform 0.2s',
+						}}
+					/>
+				) : (
+					<div
+						style={{
+							position: 'absolute',
+							inset: 0,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}
+					>
+						<svg
+							width='32'
+							height='32'
+							viewBox='0 0 24 24'
+							fill='none'
+							stroke='#2a2a2a'
+							strokeWidth='1.5'
+						>
+							<path d='M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z' />
+						</svg>
+					</div>
+				)}
+				{/* Video count badge */}
+				<div
+					style={{
+						position: 'absolute',
+						bottom: 0,
+						right: 0,
+						background: 'rgba(0,0,0,0.8)',
+						backdropFilter: 'blur(4px)',
+						padding: '5px 10px',
+						display: 'flex',
+						alignItems: 'center',
+						gap: 5,
+					}}
+				>
+					<svg width='12' height='12' viewBox='0 0 24 24' fill='#fff'>
+						<path d='M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z' />
+					</svg>
+					<span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
+						{playlist.video_count}{' '}
+						{playlist.video_count === 1 ? 'video' : 'videos'}
+					</span>
+				</div>
+				{/* Private badge */}
+				{playlist.visibility === 'private' && (
+					<div
+						style={{
+							position: 'absolute',
+							top: 8,
+							left: 8,
+							background: 'rgba(0,0,0,0.75)',
+							borderRadius: 6,
+							padding: '3px 8px',
+							display: 'flex',
+							alignItems: 'center',
+							gap: 4,
+						}}
+					>
+						<svg
+							width='10'
+							height='10'
+							viewBox='0 0 24 24'
+							fill='none'
+							stroke='#aaa'
+							strokeWidth='2'
+						>
+							<rect x='3' y='11' width='18' height='11' rx='2' ry='2' />
+							<path d='M7 11V7a5 5 0 0 1 10 0v4' />
+						</svg>
+						<span style={{ fontSize: 10, fontWeight: 600, color: '#aaa' }}>
+							Private
+						</span>
+					</div>
+				)}
+			</div>
+			<p
+				style={{
+					fontSize: 14,
+					fontWeight: 600,
+					color: hovered ? '#e63946' : '#fff',
+					margin: '0 0 3px',
+					overflow: 'hidden',
+					textOverflow: 'ellipsis',
+					whiteSpace: 'nowrap',
+					transition: 'color 0.15s',
+				}}
+			>
+				{playlist.title}
+			</p>
+			{playlist.description && (
+				<p
+					style={{
+						fontSize: 12,
+						color: '#666',
+						margin: '0 0 3px',
+						overflow: 'hidden',
+						textOverflow: 'ellipsis',
+						whiteSpace: 'nowrap',
+					}}
+				>
+					{playlist.description}
+				</p>
+			)}
+			<p style={{ fontSize: 11, color: '#555', margin: 0 }}>
+				Updated {timeAgo(playlist.updated_at)}
+			</p>
+		</Link>
 	)
 }
 
@@ -305,7 +434,7 @@ function VideoModal({ video, onClose }: { video: Video; onClose: () => void }) {
 							{video.title}
 						</h2>
 						<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-							{formatViews(video.views_count)} views
+							{fmt(video.views_count)} views
 						</p>
 					</div>
 					<button
@@ -386,7 +515,6 @@ function EditModal({
 				finalAvatarUrl = await uploadToImageKit(avatarFile, '/avatars')
 			if (bannerFile)
 				finalBannerUrl = await uploadToImageKit(bannerFile, '/banners')
-
 			const updates: Partial<User> = {
 				display_name: displayName,
 				bio,
@@ -443,6 +571,8 @@ function EditModal({
 					borderRadius: 16,
 					border: '1px solid #222',
 					overflow: 'hidden',
+					maxHeight: '90vh',
+					overflowY: 'auto',
 				}}
 			>
 				<div
@@ -452,6 +582,10 @@ function EditModal({
 						justifyContent: 'space-between',
 						padding: '20px 24px',
 						borderBottom: '1px solid #1e1e1e',
+						position: 'sticky',
+						top: 0,
+						background: '#111',
+						zIndex: 2,
 					}}
 				>
 					<h2
@@ -498,13 +632,25 @@ function EditModal({
 							}}
 						>
 							Channel Banner
+							<span
+								style={{
+									marginLeft: 8,
+									fontSize: 10,
+									color: '#555',
+									fontWeight: 400,
+									textTransform: 'none',
+									letterSpacing: 0,
+								}}
+							>
+								Recommended: 1280×350px
+							</span>
 						</label>
 						<div
 							onClick={() => bannerRef.current?.click()}
 							style={{
 								position: 'relative',
 								width: '100%',
-								height: 100,
+								height: 140,
 								borderRadius: 10,
 								overflow: 'hidden',
 								background: bannerPreview ? 'transparent' : '#1a1a1a',
@@ -543,6 +689,9 @@ function EditModal({
 										<path d='M21 15l-5-5L5 21' />
 									</svg>
 									<p style={{ fontSize: 12, margin: 0 }}>Upload banner</p>
+									<p style={{ fontSize: 10, margin: '4px 0 0', color: '#444' }}>
+										JPG or PNG · Max quality at 1280×350
+									</p>
 								</div>
 							)}
 						</div>
@@ -554,6 +703,7 @@ function EditModal({
 							onChange={e => handleImageSelect(e, 'banner')}
 						/>
 					</div>
+
 					{/* Avatar */}
 					<div
 						style={{
@@ -641,6 +791,7 @@ function EditModal({
 							onChange={e => handleImageSelect(e, 'avatar')}
 						/>
 					</div>
+
 					{/* Display Name */}
 					<div style={{ marginBottom: 16 }}>
 						<label
@@ -665,6 +816,7 @@ function EditModal({
 							onBlur={e => (e.currentTarget.style.borderColor = '#222')}
 						/>
 					</div>
+
 					{/* Bio */}
 					<div style={{ marginBottom: 24 }}>
 						<label
@@ -700,6 +852,7 @@ function EditModal({
 							{bio.length}/300
 						</p>
 					</div>
+
 					{error && (
 						<div
 							style={{
@@ -715,6 +868,7 @@ function EditModal({
 							{error}
 						</div>
 					)}
+
 					<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
 						<button
 							onClick={onClose}
@@ -775,8 +929,11 @@ export default function ChannelPage() {
 	const { user: currentUser } = useAuthContext()
 	const [user, setUser] = useState<User | null>(null)
 	const [videos, setVideos] = useState<Video[]>([])
+	const [playlists, setPlaylists] = useState<Playlist[]>([])
 	const [tab, setTab] = useState<Tab>('videos')
 	const [loading, setLoading] = useState(true)
+	const [playlistsLoading, setPlaylistsLoading] = useState(false)
+	const [playlistsLoaded, setPlaylistsLoaded] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [editOpen, setEditOpen] = useState(false)
 	const [subscribed, setSubscribed] = useState(false)
@@ -786,6 +943,7 @@ export default function ChannelPage() {
 
 	const isOwner = currentUser?.id === params.userId
 	const totalViews = videos.reduce((sum, v) => sum + (v.views_count || 0), 0)
+
 	useEffect(() => {
 		Promise.all([
 			fetch(`/api/users/${params.userId}`).then(r => r.json()),
@@ -809,6 +967,26 @@ export default function ChannelPage() {
 			.finally(() => setLoading(false))
 	}, [params.userId])
 
+	// Lazy-load playlists when tab is selected
+	useEffect(() => {
+		if (tab !== 'playlists' || playlistsLoaded) return
+		setPlaylistsLoading(true)
+		// If owner: fetch own playlists (all), else fetch public ones via channel endpoint
+		const url = isOwner
+			? '/api/me/playlists'
+			: `/api/users/${params.userId}/playlists`
+		fetch(url)
+			.then(r => r.json())
+			.then(data => {
+				if (data.ok) setPlaylists(data.data.items)
+			})
+			.catch(() => {})
+			.finally(() => {
+				setPlaylistsLoading(false)
+				setPlaylistsLoaded(true)
+			})
+	}, [tab, playlistsLoaded, isOwner, params.userId])
+
 	async function handleSubscribe() {
 		if (!currentUser) {
 			window.location.href = '/en/login'
@@ -828,11 +1006,11 @@ export default function ChannelPage() {
 			setSubLoading(false)
 		}
 	}
- 
 
 	if (loading)
 		return (
 			<UserLayout>
+				<style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
 				<div
 					style={{
 						display: 'flex',
@@ -841,7 +1019,6 @@ export default function ChannelPage() {
 						height: 300,
 					}}
 				>
-					<style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
 					<div
 						style={{
 							width: 32,
@@ -869,362 +1046,505 @@ export default function ChannelPage() {
 
 	const displayName = user.display_name?.trim() || user.username
 	const avatarColor = colorFromId(user.id)
+	const tabs: Tab[] = ['videos', 'playlists', 'about']
 
 	return (
 		<UserLayout>
 			<style>{`
 				@keyframes spin { to { transform: rotate(360deg) } }
 				@keyframes fadeUp { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
+				@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.45} }
 			`}</style>
 
-			{/* Banner */}
-			<div
-				style={{
-					width: '100%',
-					height: 200,
-					borderRadius: 16,
-					overflow: 'hidden',
-					background: user.banner_url
-						? 'transparent'
-						: `linear-gradient(135deg, ${avatarColor}33 0%, #111 60%)`,
-					position: 'relative',
-					border: '1px solid #1a1a1a',
-				}}
-			>
-				{user.banner_url && (
-					<img
-						src={user.banner_url}
-						alt='banner'
-						style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-					/>
-				)}
+			{/* Constrain page width for better banner quality */}
+			<div style={{ maxWidth: 900, margin: '0 auto' }}>
+				{/* ── Banner — 4:1 ratio (wide but not absurdly thin) ── */}
 				<div
 					style={{
-						position: 'absolute',
-						bottom: 0,
-						left: 0,
-						right: 0,
-						height: 80,
-						background: 'linear-gradient(to top, #0f0f0f, transparent)',
-					}}
-				/>
-			</div>
-
-			{/* Profile row */}
-			<div
-				style={{
-					display: 'flex',
-					alignItems: 'flex-end',
-					gap: 20,
-					padding: '0 4px',
-					marginTop: -44,
-					marginBottom: 28,
-					position: 'relative',
-					zIndex: 2,
-					flexWrap: 'wrap',
-					animation: 'fadeUp 0.4s ease both',
-				}}
-			>
-				<div
-					style={{
-						width: 88,
-						height: 88,
-						borderRadius: '50%',
-						flexShrink: 0,
-						background: user.avatar_url ? 'transparent' : avatarColor,
-						border: '3px solid #0f0f0f',
+						width: '100%',
+						/* 4:1 aspect ratio — good quality at 900px → 225px tall */
+						paddingBottom: '25%',
+						position: 'relative',
+						borderRadius: 14,
 						overflow: 'hidden',
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
-						fontSize: 32,
-						fontWeight: 800,
-						color: '#fff',
-						boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+						background: user.banner_url
+							? 'transparent'
+							: `linear-gradient(135deg, ${avatarColor}44 0%, #181818 70%)`,
+						border: '1px solid #1a1a1a',
+						marginBottom: 0,
 					}}
 				>
-					{user.avatar_url ? (
+					{user.banner_url && (
 						<img
-							src={user.avatar_url}
-							style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-							alt={displayName}
+							src={user.banner_url}
+							alt='banner'
+							style={{
+								position: 'absolute',
+								inset: 0,
+								width: '100%',
+								height: '100%',
+								objectFit: 'cover',
+							}}
 						/>
-					) : (
-						getInitials(displayName)
 					)}
-				</div>
-				<div style={{ flex: 1, minWidth: 200, paddingBottom: 4 }}>
-					<h1
+					<div
 						style={{
-							fontSize: 22,
+							position: 'absolute',
+							bottom: 0,
+							left: 0,
+							right: 0,
+							height: 80,
+							background: 'linear-gradient(to top, #0f0f0f, transparent)',
+						}}
+					/>
+				</div>
+
+				{/* ── Profile row ── */}
+				<div
+					style={{
+						display: 'flex',
+						alignItems: 'flex-end',
+						gap: 18,
+						padding: '0 4px',
+						marginTop: -40,
+						marginBottom: 24,
+						position: 'relative',
+						zIndex: 2,
+						flexWrap: 'wrap',
+						animation: 'fadeUp 0.4s ease both',
+					}}
+				>
+					{/* Avatar */}
+					<div
+						style={{
+							width: 82,
+							height: 82,
+							borderRadius: '50%',
+							flexShrink: 0,
+							background: user.avatar_url ? 'transparent' : avatarColor,
+							border: '3px solid #0f0f0f',
+							overflow: 'hidden',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+							fontSize: 30,
 							fontWeight: 800,
 							color: '#fff',
-							letterSpacing: '-0.3px',
-							margin: '0 0 2px',
+							boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
 						}}
 					>
-						{displayName}
-					</h1>
-					<p style={{ fontSize: 13, color: '#555', margin: '0 0 6px' }}>
-						@{user.username}
-					</p>
-					<p style={{ fontSize: 12, color: '#444', marginTop: 6 }}>
-						{videos.length} {videos.length === 1 ? 'video' : 'videos'}
-					</p>
-				</div>
-				<div
-					style={{ display: 'flex', gap: 8, paddingBottom: 25, flexShrink: 0 }}
-				>
-					{isOwner ? (
-						<>
-							<button
-								onClick={() => setEditOpen(true)}
+						{user.avatar_url ? (
+							<img
+								src={user.avatar_url}
+								style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+								alt={displayName}
+							/>
+						) : (
+							getInitials(displayName)
+						)}
+					</div>
+
+					{/* Name + stats */}
+					<div style={{ flex: 1, minWidth: 160, paddingBottom: 4 }}>
+						<h1
+							style={{
+								fontSize: 20,
+								fontWeight: 800,
+								color: '#fff',
+								letterSpacing: '-0.3px',
+								margin: '0 0 2px',
+							}}
+						>
+							{displayName}
+						</h1>
+						<p style={{ fontSize: 12, color: '#555', margin: '0 0 6px' }}>
+							@{user.username}
+						</p>
+						{/* Subscribers + video count inline */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+							<span style={{ fontSize: 13, color: '#888' }}>
+								<span style={{ color: '#ccc', fontWeight: 600 }}>
+									{fmt(subscribersCount)}
+								</span>{' '}
+								subscriber{subscribersCount !== 1 ? 's' : ''}
+							</span>
+							<span
 								style={{
-									display: 'flex',
-									alignItems: 'center',
-									gap: 6,
-									padding: '9px 16px',
+									width: 3,
+									height: 3,
+									borderRadius: '50%',
+									background: '#444',
+									display: 'inline-block',
+								}}
+							/>
+							<span style={{ fontSize: 13, color: '#888' }}>
+								<span style={{ color: '#ccc', fontWeight: 600 }}>
+									{videos.length}
+								</span>{' '}
+								video{videos.length !== 1 ? 's' : ''}
+							</span>
+						</div>
+					</div>
+
+					{/* Action buttons */}
+					<div
+						style={{ display: 'flex', gap: 8, paddingBottom: 6, flexShrink: 0 }}
+					>
+						{isOwner ? (
+							<>
+								<button
+									onClick={() => setEditOpen(true)}
+									style={{
+										display: 'flex',
+										alignItems: 'center',
+										gap: 6,
+										padding: '8px 14px',
+										borderRadius: 24,
+										border: '1px solid #2a2a2a',
+										background: '#1a1a1a',
+										color: '#ccc',
+										fontSize: 12,
+										fontWeight: 600,
+										cursor: 'pointer',
+									}}
+									onMouseEnter={e => {
+										e.currentTarget.style.borderColor = '#444'
+										e.currentTarget.style.color = '#fff'
+									}}
+									onMouseLeave={e => {
+										e.currentTarget.style.borderColor = '#2a2a2a'
+										e.currentTarget.style.color = '#ccc'
+									}}
+								>
+									<svg
+										width='13'
+										height='13'
+										viewBox='0 0 24 24'
+										fill='none'
+										stroke='currentColor'
+										strokeWidth='2'
+									>
+										<path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
+										<path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
+									</svg>
+									Edit Profile
+								</button>
+								<a
+									href='/en/manage-videos'
+									style={{
+										display: 'flex',
+										alignItems: 'center',
+										gap: 6,
+										padding: '8px 14px',
+										borderRadius: 24,
+										border: '1px solid #2a2a2a',
+										background: '#1a1a1a',
+										color: '#ccc',
+										fontSize: 12,
+										fontWeight: 600,
+										cursor: 'pointer',
+										textDecoration: 'none',
+										transition: 'border-color 0.15s, color 0.15s',
+									}}
+									onMouseEnter={e => {
+										e.currentTarget.style.borderColor = '#e63946'
+										e.currentTarget.style.color = '#e63946'
+									}}
+									onMouseLeave={e => {
+										e.currentTarget.style.borderColor = '#2a2a2a'
+										e.currentTarget.style.color = '#ccc'
+									}}
+								>
+									<svg
+										width='13'
+										height='13'
+										viewBox='0 0 24 24'
+										fill='currentColor'
+									>
+										<path d='M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z' />
+									</svg>
+									Manage Videos
+								</a>
+							</>
+						) : (
+							<button
+								onClick={handleSubscribe}
+								disabled={subLoading}
+								style={{
+									padding: '9px 22px',
 									borderRadius: 24,
-									border: '1px solid #2a2a2a',
-									background: '#1a1a1a',
-									color: '#ccc',
+									border: subscribed ? '1px solid #333' : 'none',
+									background: subscribed ? '#1a1a1a' : '#fff',
+									color: subscribed ? '#ccc' : '#000',
 									fontSize: 13,
-									fontWeight: 600,
-									cursor: 'pointer',
+									fontWeight: 700,
+									cursor: subLoading ? 'not-allowed' : 'pointer',
+									opacity: subLoading ? 0.7 : 1,
+									transition: 'all 0.15s',
 								}}
-								onMouseEnter={e => {
-									e.currentTarget.style.borderColor = '#444'
-									e.currentTarget.style.color = '#fff'
-								}}
-								onMouseLeave={e => {
-									e.currentTarget.style.borderColor = '#2a2a2a'
-									e.currentTarget.style.color = '#ccc'
+							>
+								{subLoading ? '…' : subscribed ? '✓ Subscribed' : 'Subscribe'}
+							</button>
+						)}
+					</div>
+				</div>
+
+				{/* ── Tabs ── */}
+				<div
+					style={{
+						display: 'flex',
+						borderBottom: '1px solid #1a1a1a',
+						marginBottom: 28,
+					}}
+				>
+					{tabs.map(t => (
+						<button
+							key={t}
+							onClick={() => setTab(t)}
+							style={{
+								padding: '11px 18px',
+								background: 'none',
+								border: 'none',
+								cursor: 'pointer',
+								color: tab === t ? '#fff' : '#555',
+								fontSize: 13,
+								fontWeight: tab === t ? 700 : 400,
+								letterSpacing: '0.3px',
+								borderBottom:
+									tab === t ? '2px solid #e63946' : '2px solid transparent',
+								textTransform: 'capitalize',
+								transition: 'color 0.15s',
+							}}
+						>
+							{t}
+						</button>
+					))}
+				</div>
+
+				{/* ── Content ── */}
+				<div key={tab} style={{ animation: 'fadeUp 0.25s ease both' }}>
+					{/* Videos tab */}
+					{tab === 'videos' &&
+						(videos.length === 0 ? (
+							<div
+								style={{
+									textAlign: 'center',
+									padding: '60px 20px',
+									color: '#555',
 								}}
 							>
 								<svg
-									width='14'
-									height='14'
+									width='48'
+									height='48'
 									viewBox='0 0 24 24'
 									fill='none'
-									stroke='currentColor'
-									strokeWidth='2'
+									stroke='#333'
+									strokeWidth='1.5'
+									style={{ margin: '0 auto 14px', display: 'block' }}
 								>
-									<path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
-									<path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
+									<rect x='2' y='3' width='20' height='14' rx='2' />
+									<path d='M8 21h8M12 17v4' />
 								</svg>
-								Edit Profile
-							</button>
-							{/* ── ADD THIS BUTTON ── */}
-							<a
-								href='/en/manage-videos'
-								style={{
-									display: 'flex',
-									alignItems: 'center',
-									gap: 6,
-									padding: '9px 16px',
-									borderRadius: 24,
-									border: '1px solid #2a2a2a',
-									background: '#1a1a1a',
-									color: '#ccc',
-									fontSize: 13,
-									fontWeight: 600,
-									cursor: 'pointer',
-									textDecoration: 'none',
-									transition: 'border-color 0.15s, color 0.15s',
-								}}
-								onMouseEnter={e => {
-									e.currentTarget.style.borderColor = '#e63946'
-									e.currentTarget.style.color = '#e63946'
-								}}
-								onMouseLeave={e => {
-									e.currentTarget.style.borderColor = '#2a2a2a'
-									e.currentTarget.style.color = '#ccc'
-								}}
-							>
-								<svg
-									width='14'
-									height='14'
-									viewBox='0 0 24 24'
-									fill='currentColor'
-								>
-									<path d='M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z' />
-								</svg>
-								Manage Videos
-							</a>
-						</>
-					) : (
-						<button
-							onClick={handleSubscribe}
-							disabled={subLoading}
-							style={{
-								padding: '10px 24px',
-								borderRadius: 24,
-								border: subscribed ? '1px solid #333' : 'none',
-								background: subscribed ? '#1a1a1a' : '#fff',
-								color: subscribed ? '#ccc' : '#000',
-								fontSize: 13,
-								fontWeight: 700,
-								cursor: subLoading ? 'not-allowed' : 'pointer',
-								opacity: subLoading ? 0.7 : 1,
-								transition: 'all 0.15s',
-							}}
-						>
-							{subLoading ? '…' : subscribed ? 'Subscribed' : 'Subscribe'}
-						</button>
-					)}
-				</div>
-			</div>
-
-			{/* Tabs */}
-			<div
-				style={{
-					display: 'flex',
-					borderBottom: '1px solid #1a1a1a',
-					marginBottom: 28,
-				}}
-			>
-				{(['videos', 'about'] as Tab[]).map(t => (
-					<button
-						key={t}
-						onClick={() => setTab(t)}
-						style={{
-							padding: '12px 20px',
-							background: 'none',
-							border: 'none',
-							cursor: 'pointer',
-							color: tab === t ? '#fff' : '#555',
-							fontSize: 13,
-							fontWeight: tab === t ? 700 : 400,
-							letterSpacing: '0.3px',
-							borderBottom:
-								tab === t ? '2px solid #e63946' : '2px solid transparent',
-							textTransform: 'capitalize',
-							transition: 'color 0.15s',
-						}}
-					>
-						{t}
-					</button>
-				))}
-			</div>
-
-			{/* Content */}
-			<div key={tab} style={{ animation: 'fadeUp 0.25s ease both' }}>
-				{tab === 'videos' &&
-					(videos.length === 0 ? (
-						<div
-							style={{
-								textAlign: 'center',
-								padding: '80px 20px',
-								color: '#555',
-							}}
-						>
-							<svg
-								width='56'
-								height='56'
-								viewBox='0 0 24 24'
-								fill='none'
-								stroke='#333'
-								strokeWidth='1.5'
-								style={{ margin: '0 auto 16px', display: 'block' }}
-							>
-								<rect x='2' y='3' width='20' height='14' rx='2' />
-								<path d='M8 21h8M12 17v4' />
-							</svg>
-							<p style={{ fontSize: 15, color: '#666', marginBottom: 6 }}>
-								No videos yet
-							</p>
-							{isOwner && (
-								<p style={{ fontSize: 13, color: '#444' }}>
-									Upload your first video using the Upload button in the header
+								<p style={{ fontSize: 15, color: '#666', marginBottom: 4 }}>
+									No videos yet
 								</p>
-							)}
-						</div>
-					) : (
-						<div
-							style={{
-								display: 'grid',
-								gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-								gap: 20,
-							}}
-						>
-							{videos.map(v => (
-								<VideoCard
-									key={v.id}
-									video={v}
-									onPlay={() => setPlayingVideo(v)}
-								/>
-							))}
-						</div>
-					))}
-				{tab === 'about' && (
-					<div style={{ maxWidth: 560 }}>
-						<div style={{ marginBottom: 32 }}>
-							<h3
-								style={{
-									fontSize: 12,
-									fontWeight: 700,
-									color: '#555',
-									letterSpacing: '1px',
-									textTransform: 'uppercase',
-									marginBottom: 14,
-								}}
-							>
-								About
-							</h3>
-							<p
-								style={{
-									fontSize: 15,
-									color: '#ccc',
-									lineHeight: 1.7,
-									margin: 0,
-								}}
-							>
-								{user.bio || <span style={{ color: '#444' }}>No bio yet.</span>}
-							</p>
-						</div>
-						<div>
-							<h3
-								style={{
-									fontSize: 12,
-									fontWeight: 700,
-									color: '#555',
-									letterSpacing: '1px',
-									textTransform: 'uppercase',
-									marginBottom: 14,
-								}}
-							>
-								Details
-							</h3>
+								{isOwner && (
+									<p style={{ fontSize: 13, color: '#444' }}>
+										Upload your first video using the Upload button in the
+										header
+									</p>
+								)}
+							</div>
+						) : (
 							<div
-								style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+								style={{
+									display: 'grid',
+									gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+									gap: 20,
+								}}
 							>
-								{[
-									['Videos', String(videos.length)],
-									['Joined', formatDate(user.created_at)],
-									['Total views', formatViews(totalViews)],
-									['Subscribers', formatSubs(subscribersCount)],
-								].map(([label, value]) => (
-									<div
-										key={label}
-										style={{ display: 'flex', gap: 16, alignItems: 'baseline' }}
-									>
-										<span
+								{videos.map(v => (
+									<VideoCard
+										key={v.id}
+										video={v}
+										onPlay={() => setPlayingVideo(v)}
+									/>
+								))}
+							</div>
+						))}
+
+					{/* Playlists tab */}
+					{tab === 'playlists' &&
+						(playlistsLoading ? (
+							<div
+								style={{
+									display: 'grid',
+									gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+									gap: 20,
+								}}
+							>
+								{Array.from({ length: 4 }).map((_, i) => (
+									<div key={i}>
+										<div
 											style={{
-												fontSize: 13,
-												color: '#444',
-												width: 80,
-												flexShrink: 0,
+												paddingBottom: '56.25%',
+												background: '#1a1a1a',
+												borderRadius: 10,
+												marginBottom: 10,
+												animation: 'pulse 1.6s ease-in-out infinite',
 											}}
-										>
-											{label}
-										</span>
-										<span style={{ fontSize: 14, color: '#ccc' }}>{value}</span>
+										/>
+										<div
+											style={{
+												height: 14,
+												background: '#1a1a1a',
+												borderRadius: 4,
+												marginBottom: 6,
+												animation: 'pulse 1.6s ease-in-out infinite',
+											}}
+										/>
+										<div
+											style={{
+												height: 11,
+												background: '#1a1a1a',
+												borderRadius: 4,
+												width: '55%',
+												animation: 'pulse 1.6s ease-in-out infinite',
+											}}
+										/>
 									</div>
 								))}
 							</div>
+						) : playlists.length === 0 ? (
+							<div style={{ textAlign: 'center', padding: '60px 20px' }}>
+								<div style={{ fontSize: 40, marginBottom: 14 }}>🎵</div>
+								<p style={{ fontSize: 15, color: '#666', marginBottom: 4 }}>
+									{isOwner ? 'No playlists yet' : 'No public playlists'}
+								</p>
+								{isOwner && (
+									<>
+										<p
+											style={{ fontSize: 13, color: '#444', marginBottom: 16 }}
+										>
+											Create your first playlist to organise your videos.
+										</p>
+										<a
+											href='/en/playlists'
+											style={{
+												display: 'inline-flex',
+												alignItems: 'center',
+												gap: 6,
+												padding: '9px 20px',
+												borderRadius: 24,
+												background: '#e63946',
+												color: '#fff',
+												fontSize: 13,
+												fontWeight: 600,
+												textDecoration: 'none',
+											}}
+										>
+											Go to Playlists
+										</a>
+									</>
+								)}
+							</div>
+						) : (
+							<div
+								style={{
+									display: 'grid',
+									gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+									gap: 24,
+								}}
+							>
+								{playlists.map(pl => (
+									<PlaylistCard key={pl.id} playlist={pl} />
+								))}
+							</div>
+						))}
+
+					{/* About tab */}
+					{tab === 'about' && (
+						<div style={{ maxWidth: 480 }}>
+							<div style={{ marginBottom: 28 }}>
+								<h3
+									style={{
+										fontSize: 11,
+										fontWeight: 700,
+										color: '#555',
+										letterSpacing: '1.2px',
+										textTransform: 'uppercase',
+										marginBottom: 12,
+									}}
+								>
+									About
+								</h3>
+								<p
+									style={{
+										fontSize: 15,
+										color: '#ccc',
+										lineHeight: 1.7,
+										margin: 0,
+									}}
+								>
+									{user.bio ? (
+										user.bio
+									) : (
+										<span style={{ color: '#444', fontStyle: 'italic' }}>
+											No bio yet.
+										</span>
+									)}
+								</p>
+							</div>
+							<div>
+								<h3
+									style={{
+										fontSize: 11,
+										fontWeight: 700,
+										color: '#555',
+										letterSpacing: '1.2px',
+										textTransform: 'uppercase',
+										marginBottom: 12,
+									}}
+								>
+									Details
+								</h3>
+								<div
+									style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+								>
+									{[
+										['Videos', String(videos.length)],
+										['Subscribers', fmt(subscribersCount)],
+										['Total views', fmt(totalViews)],
+										['Joined', formatDate(user.created_at)],
+									].map(([label, value]) => (
+										<div
+											key={label}
+											style={{
+												display: 'flex',
+												gap: 16,
+												alignItems: 'baseline',
+											}}
+										>
+											<span
+												style={{
+													fontSize: 13,
+													color: '#444',
+													width: 90,
+													flexShrink: 0,
+												}}
+											>
+												{label}
+											</span>
+											<span style={{ fontSize: 14, color: '#ccc' }}>
+												{value}
+											</span>
+										</div>
+									))}
+								</div>
+							</div>
 						</div>
-					</div>
-				)}
+					)}
+				</div>
 			</div>
 
 			{editOpen && (
