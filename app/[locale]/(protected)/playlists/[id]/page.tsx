@@ -499,36 +499,6 @@ export default function PlaylistDetailPage() {
 			`}</style>
 
 			{toast && <Toast msg={toast.msg} type={toast.type} />}
-
-			{/* Back */}
-			<Link
-				href='/en/playlists'
-				style={{
-					display: 'inline-flex',
-					alignItems: 'center',
-					gap: 6,
-					color: '#555',
-					fontSize: 13,
-					textDecoration: 'none',
-					marginBottom: 28,
-					transition: 'color 0.15s',
-				}}
-				onMouseEnter={e => (e.currentTarget.style.color = '#e63946')}
-				onMouseLeave={e => (e.currentTarget.style.color = '#555')}
-			>
-				<svg
-					width='14'
-					height='14'
-					viewBox='0 0 24 24'
-					fill='none'
-					stroke='currentColor'
-					strokeWidth='2'
-				>
-					<path d='M15 18l-6-6 6-6' />
-				</svg>
-				All Playlists
-			</Link>
-
 			<div
 				style={{
 					display: 'flex',
