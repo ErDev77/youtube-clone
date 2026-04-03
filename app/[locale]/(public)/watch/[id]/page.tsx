@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import UserLayout from '@/app/_components/layout/UserLayout'
 import { useAuthContext } from '@/context/AuthContext'
 import VideoPlayer from '@/app/_components/video/VideoPlayer'
 import { Clock, ListVideo, Share2, ThumbsUp, ThumbsDown } from 'lucide-react'
 import PlaylistPicker from '@/app/_components/video/PlaylistPicker'
+import QueueSidebar from '@/app/_components/video/QueueSidebar'
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPES
@@ -52,6 +53,8 @@ type Comment = {
 	likes_count: number
 	is_liked?: boolean
 }
+
+type QueueType = 'liked' | 'watchlater' | 'playlist'
 
 /* ─────────────────────────────────────────────────────────────────────────────
    HELPERS
@@ -978,10 +981,16 @@ function NormalPlayer({
 	v,
 	related,
 	currentUser,
+	queueType,
+	queueIndex,
+	playlistId,
 }: {
 	v: Video
 	related: Related[]
 	currentUser?: { id: string; username: string } | null
+	queueType?: QueueType | null
+	queueIndex: number
+	playlistId?: string | null
 }) {
 	const name = v.display_name || v.username
 	const [liked, setLiked] = useState(false)
@@ -996,7 +1005,6 @@ function NormalPlayer({
 	const [playlistOpen, setPlaylistOpen] = useState(false)
 	const isOwn = currentUser?.id === v.user_id
 
-	// Load initial reaction state + subscription state
 	useEffect(() => {
 		fetch(`/api/videos/${v.id}/like`)
 			.then(r => r.json())
@@ -1027,7 +1035,6 @@ function NormalPlayer({
 			return
 		}
 
-		// Optimistic update
 		const wasLiked = liked
 		const wasDisliked = disliked
 
@@ -1057,20 +1064,17 @@ function NormalPlayer({
 			})
 			const data = await res.json()
 			if (data.ok) {
-				// Sync with server truth
 				setLiked(data.data.liked)
 				setDisliked(data.data.disliked)
 				setLikesCount(data.data.likes_count)
 				setDislikesCount(data.data.dislikes_count)
 			} else {
-				// Revert on error
 				setLiked(wasLiked)
 				setDisliked(wasDisliked)
 				setLikesCount(v.likes_count)
 				setDislikesCount(v.dislikes_count ?? 0)
 			}
 		} catch {
-			// Revert on error
 			setLiked(wasLiked)
 			setDisliked(wasDisliked)
 			setLikesCount(v.likes_count)
@@ -1105,6 +1109,9 @@ function NormalPlayer({
 		setCopied(true)
 		setTimeout(() => setCopied(false), 2000)
 	}
+
+	// When in queue mode, sidebar shows QueueSidebar; otherwise Related videos
+	const showQueue = !!queueType
 
 	const sidebarVideos = related.filter(r => r.id !== v.id).slice(0, 22)
 
@@ -1215,7 +1222,6 @@ function NormalPlayer({
 									border: '1px solid #2a2a2a',
 								}}
 							>
-								{/* Like */}
 								<button
 									onClick={() => handleReaction('like')}
 									style={{
@@ -1238,7 +1244,6 @@ function NormalPlayer({
 									<ThumbsUp size={18} fill={liked ? 'currentColor' : 'none'} />
 									{fmt(likesCount)}
 								</button>
-								{/* Dislike */}
 								<button
 									onClick={() => handleReaction('dislike')}
 									style={{
@@ -1463,27 +1468,42 @@ function NormalPlayer({
 					<CommentsSection videoId={v.id} currentUser={currentUser} />
 				</div>
 
-				{/* ── RIGHT: sidebar ── */}
+				{/* ── RIGHT: Queue or Related sidebar ── */}
 				<aside style={{ width: 400, flexShrink: 0, paddingTop: 2 }}>
-					<p
-						style={{
-							fontSize: 12,
-							fontWeight: 700,
-							color: '#555',
-							letterSpacing: '1px',
-							textTransform: 'uppercase',
-							margin: '0 0 14px',
-						}}
-					>
-						Up Next
-					</p>
-					<div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-						{sidebarVideos.length === 0 ? (
-							<p style={{ fontSize: 13, color: '#444' }}>No related videos</p>
-						) : (
-							sidebarVideos.map(r => <RelatedCard key={r.id} video={r} />)
-						)}
-					</div>
+					{showQueue ? (
+						<QueueSidebar
+							currentVideoId={v.id}
+							queueType={queueType as QueueType}
+							playlistId={playlistId}
+							startIndex={queueIndex}
+						/>
+					) : (
+						<>
+							<p
+								style={{
+									fontSize: 12,
+									fontWeight: 700,
+									color: '#555',
+									letterSpacing: '1px',
+									textTransform: 'uppercase',
+									margin: '0 0 14px',
+								}}
+							>
+								Up Next
+							</p>
+							<div
+								style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+							>
+								{sidebarVideos.length === 0 ? (
+									<p style={{ fontSize: 13, color: '#444' }}>
+										No related videos
+									</p>
+								) : (
+									sidebarVideos.map(r => <RelatedCard key={r.id} video={r} />)
+								)}
+							</div>
+						</>
+					)}
 				</aside>
 			</div>
 
@@ -1500,11 +1520,22 @@ function NormalPlayer({
 
 export default function WatchPage() {
 	const { id } = useParams<{ id: string }>()
+	const searchParams = useSearchParams()
 	const { user } = useAuthContext()
 	const [video, setVideo] = useState<Video | null>(null)
 	const [related, setRelated] = useState<Related[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
+
+	// Queue params from URL
+	const queueParam = searchParams.get('queue') as QueueType | null
+	const queueIndex = parseInt(searchParams.get('index') || '0', 10)
+	const playlistId = searchParams.get('playlist_id')
+
+	// Validate queue type
+	const validQueueTypes: QueueType[] = ['liked', 'watchlater', 'playlist']
+	const queueType =
+		queueParam && validQueueTypes.includes(queueParam) ? queueParam : null
 
 	useEffect(() => {
 		if (!id) return
@@ -1639,7 +1670,14 @@ export default function WatchPage() {
 					{video.video_type === 'shorts' ? (
 						<ShortsPlayer v={video} related={related} />
 					) : (
-						<NormalPlayer v={video} related={related} currentUser={user} />
+						<NormalPlayer
+							v={video}
+							related={related}
+							currentUser={user}
+							queueType={queueType}
+							queueIndex={queueIndex}
+							playlistId={playlistId}
+						/>
 					)}
 				</div>
 			)}

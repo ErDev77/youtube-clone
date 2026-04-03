@@ -118,6 +118,7 @@ function VideoRow({
 	onDrop,
 	onRemove,
 	removing,
+	onPlay,
 }: {
 	video: PlaylistVideo
 	index: number
@@ -128,6 +129,7 @@ function VideoRow({
 	onDrop: () => void
 	onRemove: () => void
 	removing: boolean
+	onPlay: () => void
 }) {
 	const [hovered, setHovered] = useState(false)
 	const name = video.display_name || video.username
@@ -183,89 +185,87 @@ function VideoRow({
 			</div>
 
 			{/* Thumbnail */}
-			<Link
-				href={`/en/watch/${video.id}`}
-				style={{ textDecoration: 'none', flexShrink: 0 }}
+			<div
+				onClick={onPlay}
+				style={{
+					width: 120,
+					height: 68,
+					borderRadius: 8,
+					overflow: 'hidden',
+					background: '#1a1a1a',
+					position: 'relative',
+					flexShrink: 0,
+					cursor: 'pointer',
+				}}
 			>
-				<div
-					style={{
-						width: 120,
-						height: 68,
-						borderRadius: 8,
-						overflow: 'hidden',
-						background: '#1a1a1a',
-						position: 'relative',
-					}}
-				>
-					{video.thumbnail_url ? (
-						<img
-							src={video.thumbnail_url}
-							alt={video.title}
-							style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-						/>
-					) : (
+				{video.thumbnail_url ? (
+					<img
+						src={video.thumbnail_url}
+						alt={video.title}
+						style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+					/>
+				) : (
+					<div
+						style={{
+							width: '100%',
+							height: '100%',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}
+					>
+						<svg width='22' height='22' viewBox='0 0 24 24' fill='#333'>
+							<path d='M8 5v14l11-7z' />
+						</svg>
+					</div>
+				)}
+				{hovered && (
+					<div
+						style={{
+							position: 'absolute',
+							inset: 0,
+							background: 'rgba(0,0,0,0.4)',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}
+					>
 						<div
 							style={{
-								width: '100%',
-								height: '100%',
+								width: 32,
+								height: 32,
+								borderRadius: '50%',
+								background: 'rgba(230,57,70,0.9)',
 								display: 'flex',
 								alignItems: 'center',
 								justifyContent: 'center',
 							}}
 						>
-							<svg width='22' height='22' viewBox='0 0 24 24' fill='#333'>
+							<svg width='13' height='13' viewBox='0 0 24 24' fill='white'>
 								<path d='M8 5v14l11-7z' />
 							</svg>
 						</div>
-					)}
-					{hovered && (
-						<div
-							style={{
-								position: 'absolute',
-								inset: 0,
-								background: 'rgba(0,0,0,0.4)',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-							}}
-						>
-							<div
-								style={{
-									width: 32,
-									height: 32,
-									borderRadius: '50%',
-									background: 'rgba(230,57,70,0.9)',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-								}}
-							>
-								<svg width='13' height='13' viewBox='0 0 24 24' fill='white'>
-									<path d='M8 5v14l11-7z' />
-								</svg>
-							</div>
-						</div>
-					)}
-				</div>
-			</Link>
+					</div>
+				)}
+			</div>
 
 			{/* Info */}
 			<div style={{ flex: 1, minWidth: 0 }}>
-				<Link href={`/en/watch/${video.id}`} style={{ textDecoration: 'none' }}>
-					<p
-						style={{
-							fontSize: 14,
-							fontWeight: 600,
-							color: '#fff',
-							margin: '0 0 3px',
-							overflow: 'hidden',
-							textOverflow: 'ellipsis',
-							whiteSpace: 'nowrap',
-						}}
-					>
-						{video.title}
-					</p>
-				</Link>
+				<p
+					onClick={onPlay}
+					style={{
+						fontSize: 14,
+						fontWeight: 600,
+						color: '#fff',
+						margin: '0 0 3px',
+						overflow: 'hidden',
+						textOverflow: 'ellipsis',
+						whiteSpace: 'nowrap',
+						cursor: 'pointer',
+					}}
+				>
+					{video.title}
+				</p>
 				<Link
 					href={`/en/channel/${video.uploader_id}`}
 					style={{ textDecoration: 'none' }}
@@ -380,6 +380,18 @@ export default function PlaylistDetailPage() {
 		setTimeout(() => setToast(null), 3000)
 	}
 
+	/* ── Navigate to a video in the playlist queue ── */
+	function playAt(index: number) {
+		if (index < 0 || index >= videos.length) return
+		const video = videos[index]
+		const params = new URLSearchParams({
+			queue: 'playlist',
+			index: String(index),
+			playlist_id: id,
+		})
+		router.push(`/en/watch/${video.id}?${params}`)
+	}
+
 	/* ── Drag & drop reorder ── */
 	function handleDragStart(index: number) {
 		dragIndexRef.current = index
@@ -403,7 +415,6 @@ export default function PlaylistDetailPage() {
 		dragIndexRef.current = null
 		setDragOverIndex(null)
 
-		// Persist new order
 		setSavingOrder(true)
 		fetch(`/api/playlists/${id}/videos`, {
 			method: 'PATCH',
@@ -662,10 +673,10 @@ export default function PlaylistDetailPage() {
 						Updated {timeAgo(playlist.updated_at)}
 					</p>
 
-					{/* Actions */}
+					{/* Play All — uses queue */}
 					{videos.length > 0 && (
-						<Link
-							href={`/en/watch/${videos[0].id}`}
+						<button
+							onClick={() => playAt(0)}
 							style={{
 								display: 'flex',
 								alignItems: 'center',
@@ -679,6 +690,8 @@ export default function PlaylistDetailPage() {
 								color: '#fff',
 								fontSize: 14,
 								fontWeight: 700,
+								cursor: 'pointer',
+								fontFamily: 'inherit',
 								textDecoration: 'none',
 								transition: 'background 0.15s',
 								marginBottom: 10,
@@ -696,7 +709,7 @@ export default function PlaylistDetailPage() {
 								<path d='M8 5v14l11-7z' />
 							</svg>
 							Play All
-						</Link>
+						</button>
 					)}
 
 					{isOwner && (
@@ -815,6 +828,7 @@ export default function PlaylistDetailPage() {
 									onDrop={() => handleDrop(index)}
 									onRemove={() => handleRemove(video.id)}
 									removing={removingId === video.id}
+									onPlay={() => playAt(index)}
 								/>
 							))}
 						</div>

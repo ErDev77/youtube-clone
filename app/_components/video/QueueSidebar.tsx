@@ -76,7 +76,6 @@ export default function QueueSidebar({
 	const [items, setItems] = useState<QueueItem[]>([])
 	const [loading, setLoading] = useState(true)
 	const [currentIndex, setCurrentIndex] = useState(startIndex)
-	const [autoplay, setAutoplay] = useState(true)
 	const currentItemRef = useRef<HTMLDivElement>(null)
 
 	// Find the actual index of the current video in the queue
@@ -212,128 +211,6 @@ export default function QueueSidebar({
 									}}
 								/>
 							</div>
-						</div>
-						<div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-							<button
-								onClick={() => navigateTo(prevIndex)}
-								disabled={!hasPrev}
-								style={{
-									width: 30,
-									height: 30,
-									borderRadius: 8,
-									border: '1px solid #1e1e1e',
-									background: 'transparent',
-									color: hasPrev ? '#888' : '#2a2a2a',
-									cursor: hasPrev ? 'pointer' : 'not-allowed',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									transition: 'all 0.15s',
-									flexShrink: 0,
-								}}
-								onMouseEnter={e => {
-									if (hasPrev) {
-										e.currentTarget.style.borderColor = '#444'
-										e.currentTarget.style.color = '#fff'
-									}
-								}}
-								onMouseLeave={e => {
-									e.currentTarget.style.borderColor = '#1e1e1e'
-									e.currentTarget.style.color = hasPrev ? '#888' : '#2a2a2a'
-								}}
-							>
-								<svg
-									width='14'
-									height='14'
-									viewBox='0 0 24 24'
-									fill='currentColor'
-								>
-									<path d='M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z' />
-								</svg>
-							</button>
-							<button
-								onClick={() => navigateTo(nextIndex)}
-								disabled={!hasNext}
-								style={{
-									width: 30,
-									height: 30,
-									borderRadius: 8,
-									border: '1px solid #1e1e1e',
-									background: 'transparent',
-									color: hasNext ? '#888' : '#2a2a2a',
-									cursor: hasNext ? 'pointer' : 'not-allowed',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									transition: 'all 0.15s',
-									flexShrink: 0,
-								}}
-								onMouseEnter={e => {
-									if (hasNext) {
-										e.currentTarget.style.borderColor = '#444'
-										e.currentTarget.style.color = '#fff'
-									}
-								}}
-								onMouseLeave={e => {
-									e.currentTarget.style.borderColor = '#1e1e1e'
-									e.currentTarget.style.color = hasNext ? '#888' : '#2a2a2a'
-								}}
-							>
-								<svg
-									width='14'
-									height='14'
-									viewBox='0 0 24 24'
-									fill='currentColor'
-								>
-									<path d='M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z' />
-								</svg>
-							</button>
-							<div style={{ flex: 1 }} />
-							{/* Autoplay toggle */}
-							<button
-								onClick={() => setAutoplay(v => !v)}
-								style={{
-									display: 'flex',
-									alignItems: 'center',
-									gap: 6,
-									padding: '4px 10px',
-									borderRadius: 20,
-									border: '1px solid #1e1e1e',
-									background: autoplay ? 'rgba(230,57,70,0.1)' : 'transparent',
-									color: autoplay ? '#e63946' : '#555',
-									fontSize: 11,
-									fontWeight: 600,
-									cursor: 'pointer',
-									fontFamily: 'inherit',
-									transition: 'all 0.15s',
-								}}
-							>
-								<div
-									style={{
-										width: 24,
-										height: 13,
-										borderRadius: 7,
-										background: autoplay ? '#e63946' : '#333',
-										position: 'relative',
-										transition: 'background 0.2s',
-										flexShrink: 0,
-									}}
-								>
-									<div
-										style={{
-											position: 'absolute',
-											top: 2,
-											left: autoplay ? 13 : 2,
-											width: 9,
-											height: 9,
-											borderRadius: '50%',
-											background: '#fff',
-											transition: 'left 0.2s',
-										}}
-									/>
-								</div>
-								Autoplay
-							</button>
 						</div>
 					</>
 				)}
@@ -562,7 +439,7 @@ export default function QueueSidebar({
 			</div>
 
 			{/* Footer: next up */}
-			{!loading && hasNext && autoplay && (
+			{!loading && hasNext && (
 				<div
 					style={{
 						padding: '12px 16px',
