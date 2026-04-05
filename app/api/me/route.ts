@@ -1,12 +1,8 @@
 // app/api/me/route.ts
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
+import { pool } from '@/lib/db'
 
-/**
- * GET /api/me
- * Returns the currently authenticated user or 401.
- * Used by the client to check login state and get user info.
- */
 export async function GET() {
 	const session = await getSession()
 
@@ -17,13 +13,27 @@ export async function GET() {
 		)
 	}
 
+	const result = await pool.query(
+		'SELECT id, email, username FROM users WHERE id = $1',
+		[session.userId],
+	)
+
+	if (result.rows.length === 0) {
+		return NextResponse.json(
+			{ ok: false, error: 'User not found' },
+			{ status: 404 },
+		)
+	}
+
+	const user = result.rows[0]
+
 	return NextResponse.json({
 		ok: true,
 		data: {
 			user: {
-				id: session.userId,
-				email: session.email,
-				username: session.email.split('@')[0],
+				id: user.id,
+				email: user.email,
+				username: user.username,
 			},
 		},
 	})

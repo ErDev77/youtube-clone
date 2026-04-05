@@ -16,11 +16,9 @@ interface UserInfo {
 }
 
 export function useAuth(): UseAuthReturn {
-	// undefined = not yet loaded, null = unauthenticated, object = authenticated
 	const [user, setUser] = useState<UserInfo | null | undefined>(undefined)
 	const [isLoading, setIsLoading] = useState(true)
 
-	// Fetch current session on mount
 	useEffect(() => {
 		let cancelled = false
 		fetch('/api/me')
@@ -50,7 +48,10 @@ export function useAuth(): UseAuthReturn {
 			})
 			const data = await res.json()
 			if (data.ok) {
-				setUser(data.data.user)
+				// Fetch full user info (including username) after login
+				const meRes = await fetch('/api/me')
+				const meData = await meRes.json()
+				setUser(meData.ok ? meData.data.user : data.data.user)
 			}
 			return {
 				ok: data.ok,
@@ -77,7 +78,9 @@ export function useAuth(): UseAuthReturn {
 			})
 			const data = await res.json()
 			if (data.ok) {
-				setUser(data.data.user)
+				const meRes = await fetch('/api/me')
+				const meData = await meRes.json()
+				setUser(meData.ok ? meData.data.user : data.data.user)
 			}
 			return {
 				ok: data.ok,
@@ -103,3 +106,4 @@ export function useAuth(): UseAuthReturn {
 		logout,
 	}
 }
+ 
