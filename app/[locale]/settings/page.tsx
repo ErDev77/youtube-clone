@@ -25,7 +25,6 @@ function passwordStrength(pw: string): {
 	return { score: s, label: labels[s], color: colors[s] }
 }
 
-/* ─── Spinner ─── */
 function Spinner({
 	size = 14,
 	color = '#fff',
@@ -49,7 +48,6 @@ function Spinner({
 	)
 }
 
-/* ─── Toast ─── */
 function Toast({
 	msg,
 	type,
@@ -105,7 +103,6 @@ function Toast({
 	)
 }
 
-/* ─── Section card ─── */
 function Card({
 	children,
 	style,
@@ -173,7 +170,6 @@ function CardHeader({
 	)
 }
 
-/* ─── Field ─── */
 function Field({
 	label,
 	id,
@@ -267,7 +263,6 @@ function Field({
 	)
 }
 
-/* ─── Password field with toggle ─── */
 function PasswordField({
 	label,
 	id,
@@ -352,7 +347,6 @@ function PasswordField({
 	)
 }
 
-/* ─── Submit button ─── */
 function SubmitBtn({
 	loading,
 	label,
@@ -396,7 +390,6 @@ function SubmitBtn({
 	)
 }
 
-/* ─── Sidebar nav item ─── */
 function NavItem({
 	id,
 	label,
@@ -484,9 +477,6 @@ function NavItem({
 	)
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   MAIN PAGE
-═══════════════════════════════════════════════════════════════════════════ */
 export default function SettingsPage() {
 	const router = useRouter()
 	const { user, logout } = useAuthContext()
@@ -496,40 +486,33 @@ export default function SettingsPage() {
 		type: 'success' | 'error'
 	} | null>(null)
 
-	// Account info
 	const [currentEmail, setCurrentEmail] = useState('')
 	const [currentUsername, setCurrentUsername] = useState('')
 
-	// Change email
 	const [newEmail, setNewEmail] = useState('')
 	const [emailPassword, setEmailPassword] = useState('')
 	const [emailLoading, setEmailLoading] = useState(false)
 	const [emailError, setEmailError] = useState('')
 
-	// Change username
 	const [newUsername, setNewUsername] = useState('')
 	const [usernameLoading, setUsernameLoading] = useState(false)
 	const [usernameError, setUsernameError] = useState('')
 
-	// Change password
 	const [currentPw, setCurrentPw] = useState('')
 	const [newPw, setNewPw] = useState('')
 	const [confirmPw, setConfirmPw] = useState('')
 	const [pwLoading, setPwLoading] = useState(false)
 	const [pwError, setPwError] = useState('')
 
-	// Delete account
 	const [deletePassword, setDeletePassword] = useState('')
 	const [deleteConfirmText, setDeleteConfirmText] = useState('')
 	const [deleteLoading, setDeleteLoading] = useState(false)
 	const [deleteError, setDeleteError] = useState('')
 
-	// Appearance
 	const [compactMode, setCompactMode] = useState(false)
 	const [autoplay, setAutoplay] = useState(true)
 	const [defaultQuality, setDefaultQuality] = useState('Auto')
 
-	// Privacy
 	const [showLiked, setShowLiked] = useState(false)
 	const [showSubscriptions, setShowSubscriptions] = useState(false)
 
@@ -551,7 +534,6 @@ export default function SettingsPage() {
 		setToast({ msg, type })
 	}
 
-	/* ── Change email ── */
 	async function handleEmailChange(e: React.FormEvent) {
 		e.preventDefault()
 		setEmailError('')
@@ -584,7 +566,6 @@ export default function SettingsPage() {
 		}
 	}
 
-	/* ── Change username ── */
 	async function handleUsernameChange(e: React.FormEvent) {
 		e.preventDefault()
 		setUsernameError('')
@@ -616,7 +597,6 @@ export default function SettingsPage() {
 		}
 	}
 
-	/* ── Change password ── */
 	async function handlePasswordChange(e: React.FormEvent) {
 		e.preventDefault()
 		setPwError('')
@@ -651,7 +631,6 @@ export default function SettingsPage() {
 		}
 	}
 
-	/* ── Delete account ── */
 	async function handleDeleteAccount(e: React.FormEvent) {
 		e.preventDefault()
 		setDeleteError('')
@@ -677,7 +656,6 @@ export default function SettingsPage() {
 		}
 	}
 
-	/* ── Nav sections ── */
 	const navSections: {
 		id: Section
 		label: string
@@ -774,7 +752,6 @@ export default function SettingsPage() {
 		},
 	]
 
-	/* ── Toggle component ── */
 	function Toggle({
 		checked,
 		onChange,
@@ -841,7 +818,6 @@ export default function SettingsPage() {
 		)
 	}
 
-	/* ── Error box ── */
 	function ErrorBox({ msg }: { msg: string }) {
 		return msg ? (
 			<div
@@ -871,6 +847,9 @@ export default function SettingsPage() {
 		) : null
 	}
 
+	const canDelete =
+		deleteConfirmText === 'DELETE' && !!deletePassword && !deleteLoading
+
 	return (
 		<UserLayout>
 			<style>{`
@@ -887,7 +866,6 @@ export default function SettingsPage() {
 				/>
 			)}
 
-			{/* Page header */}
 			<div style={{ marginBottom: 32 }}>
 				<h1
 					style={{
@@ -905,9 +883,8 @@ export default function SettingsPage() {
 				</p>
 			</div>
 
-			{/* Layout: sidebar + content */}
 			<div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
-				{/* ── Sidebar ── */}
+				{/* Sidebar */}
 				<div style={{ width: 200, flexShrink: 0, position: 'sticky', top: 76 }}>
 					<div
 						style={{
@@ -933,7 +910,6 @@ export default function SettingsPage() {
 						))}
 					</div>
 
-					{/* Current user info */}
 					<div
 						style={{
 							marginTop: 16,
@@ -983,7 +959,7 @@ export default function SettingsPage() {
 					</div>
 				</div>
 
-				{/* ── Content ── */}
+				{/* Content */}
 				<div
 					style={{
 						flex: 1,
@@ -995,10 +971,9 @@ export default function SettingsPage() {
 					}}
 					key={section}
 				>
-					{/* ════════ ACCOUNT ════════ */}
+					{/* ACCOUNT */}
 					{section === 'account' && (
 						<>
-							{/* Change email */}
 							<Card>
 								<CardHeader
 									icon={
@@ -1063,7 +1038,6 @@ export default function SettingsPage() {
 								</form>
 							</Card>
 
-							{/* Change username */}
 							<Card>
 								<CardHeader
 									icon={
@@ -1125,7 +1099,7 @@ export default function SettingsPage() {
 						</>
 					)}
 
-					{/* ════════ SECURITY ════════ */}
+					{/* SECURITY */}
 					{section === 'security' && (
 						<Card>
 							<CardHeader
@@ -1222,8 +1196,6 @@ export default function SettingsPage() {
 										Passwords do not match
 									</p>
 								)}
-
-								{/* Password tips */}
 								<div
 									style={{
 										background: '#111',
@@ -1278,7 +1250,6 @@ export default function SettingsPage() {
 										</div>
 									))}
 								</div>
-
 								<ErrorBox msg={pwError} />
 								<div style={{ display: 'flex', justifyContent: 'flex-end' }}>
 									<SubmitBtn
@@ -1293,7 +1264,7 @@ export default function SettingsPage() {
 						</Card>
 					)}
 
-					{/* ════════ APPEARANCE ════════ */}
+					{/* APPEARANCE */}
 					{section === 'appearance' && (
 						<Card>
 							<CardHeader
@@ -1387,7 +1358,7 @@ export default function SettingsPage() {
 						</Card>
 					)}
 
-					{/* ════════ PRIVACY ════════ */}
+					{/* PRIVACY */}
 					{section === 'privacy' && (
 						<Card>
 							<CardHeader
@@ -1433,7 +1404,7 @@ export default function SettingsPage() {
 						</Card>
 					)}
 
-					{/* ════════ DANGER ZONE ════════ */}
+					{/* DANGER ZONE */}
 					{section === 'danger' && (
 						<Card style={{ border: '1px solid rgba(230,57,70,0.25)' }}>
 							<div
@@ -1490,7 +1461,6 @@ export default function SettingsPage() {
 							</div>
 
 							<div style={{ padding: '20px 24px' }}>
-								{/* Warning banner */}
 								<div
 									style={{
 										background: 'rgba(230,57,70,0.06)',
@@ -1584,72 +1554,40 @@ export default function SettingsPage() {
 												boxSizing: 'border-box',
 												transition: 'border-color 0.2s',
 											}}
-											onFocus={e => {
-												if (deleteConfirmText !== 'DELETE')
-													e.currentTarget.style.borderColor = '#333'
-											}}
-											onBlur={e => {
-												if (deleteConfirmText !== 'DELETE')
-													e.currentTarget.style.borderColor = '#1e1e1e'
-											}}
 										/>
 									</div>
 									<ErrorBox msg={deleteError} />
 									<div style={{ display: 'flex', justifyContent: 'flex-end' }}>
 										<button
 											type='submit'
-											disabled={
-												deleteLoading ||
-												deleteConfirmText !== 'DELETE' ||
-												!deletePassword
-											}
+											disabled={!canDelete}
 											style={{
 												display: 'flex',
 												alignItems: 'center',
 												gap: 8,
 												padding: '11px 22px',
 												borderRadius: 10,
-												border: 'none',
-												background:
-													deleteLoading ||
-													deleteConfirmText !== 'DELETE' ||
-													!deletePassword
-														? '#2a2a2a'
-														: 'rgba(230,57,70,0.15)',
-												color:
-													deleteLoading ||
-													deleteConfirmText !== 'DELETE' ||
-													!deletePassword
-														? '#555'
-														: '#e63946',
+												border: canDelete
+													? '1px solid rgba(230,57,70,0.4)'
+													: '1px solid transparent',
+												background: canDelete
+													? 'rgba(230,57,70,0.15)'
+													: '#2a2a2a',
+												color: canDelete ? '#e63946' : '#555',
 												fontSize: 13,
 												fontWeight: 700,
-												cursor:
-													deleteLoading ||
-													deleteConfirmText !== 'DELETE' ||
-													!deletePassword
-														? 'not-allowed'
-														: 'pointer',
+												cursor: canDelete ? 'pointer' : 'not-allowed',
 												fontFamily: 'inherit',
-												border: `1px solid ${deleteConfirmText === 'DELETE' && deletePassword ? 'rgba(230,57,70,0.4)' : 'transparent'}`,
 												transition: 'all 0.15s',
 											}}
 											onMouseEnter={e => {
-												if (
-													deleteConfirmText === 'DELETE' &&
-													deletePassword &&
-													!deleteLoading
-												) {
+												if (canDelete) {
 													e.currentTarget.style.background = '#e63946'
 													e.currentTarget.style.color = '#fff'
 												}
 											}}
 											onMouseLeave={e => {
-												if (
-													deleteConfirmText === 'DELETE' &&
-													deletePassword &&
-													!deleteLoading
-												) {
+												if (canDelete) {
 													e.currentTarget.style.background =
 														'rgba(230,57,70,0.15)'
 													e.currentTarget.style.color = '#e63946'
