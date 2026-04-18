@@ -347,7 +347,10 @@ function VideoCard({ video }: { video: Video }) {
 	)
 }
 
-// ── Shorts card ───────────────────────────────────────────────────────────────
+// ── REPLACE the ShortsCard function in app/[locale]/page.tsx ──
+// Find the existing ShortsCard function and replace it entirely with this one.
+// The only change is: the Link href goes to /en/shorts instead of /en/watch/${video.id}
+
 function ShortsCard({ video }: { video: Video }) {
 	const [hovered, setHovered] = useState(false)
 	const [menu, setMenu] = useState(false)
@@ -358,8 +361,9 @@ function ShortsCard({ video }: { video: Video }) {
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 		>
+			{/* Clicking the thumbnail/card goes to /shorts (the feed) */}
 			<Link
-				href={`/en/watch/${video.id}`}
+				href={`/en/shorts`}
 				style={{ textDecoration: 'none', display: 'block' }}
 			>
 				<div
@@ -481,6 +485,7 @@ function ShortsCard({ video }: { video: Video }) {
 					</div>
 				</div>
 			</Link>
+			{/* Title links to the individual watch page so user can see full detail */}
 			<Link href={`/en/watch/${video.id}`} style={{ textDecoration: 'none' }}>
 				<p
 					style={{

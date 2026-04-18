@@ -1057,7 +1057,7 @@ export default function ChannelPage() {
 			`}</style>
 
 			{/* Constrain page width for better banner quality */}
-			<div style={{ maxWidth: 900, margin: '0 auto' }}>
+			<div style={{ maxWidth: 1000, margin: '0 auto' }}>
 				{/* ── Banner — 4:1 ratio (wide but not absurdly thin) ── */}
 				<div
 					style={{

@@ -20,27 +20,31 @@ export async function POST(req: Request, context: Params) {
 			)
 		}
 
-		// Check if already subscribed
 		const existing = await pool.query(
 			'SELECT 1 FROM subscriptions WHERE subscriber_id = $1 AND channel_id = $2',
 			[session.userId, channelId],
 		)
 
 		if (existing.rows.length > 0) {
-			// Unsubscribe
 			await pool.query(
 				'DELETE FROM subscriptions WHERE subscriber_id = $1 AND channel_id = $2',
 				[session.userId, channelId],
 			)
 		} else {
-			// Subscribe
 			await pool.query(
 				'INSERT INTO subscriptions (subscriber_id, channel_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
 				[session.userId, channelId],
 			)
+			// 🔔 new_subscriber notification
+			pool
+				.query(
+					`INSERT INTO notifications (recipient_id, actor_id, type)
+         VALUES ($1, $2, 'new_subscriber')`,
+					[channelId, session.userId],
+				)
+				.catch(() => {})
 		}
 
-		// Return updated count
 		const countResult = await pool.query(
 			'SELECT COUNT(*) as count FROM subscriptions WHERE channel_id = $1',
 			[channelId],
@@ -49,7 +53,7 @@ export async function POST(req: Request, context: Params) {
 		return NextResponse.json({
 			ok: true,
 			data: {
-				subscribed: existing.rows.length === 0, // true = just subscribed
+				subscribed: existing.rows.length === 0,
 				subscribers_count: parseInt(countResult.rows[0].count, 10),
 			},
 		})
@@ -70,7 +74,6 @@ export async function GET(req: Request, context: Params) {
 			'then' in context.params ? await context.params : context.params
 		const channelId = params.id
 
-		// Try to get current user (optional — not required to view count)
 		let isSubscribed = false
 		try {
 			const session = await requireSession()
@@ -80,7 +83,7 @@ export async function GET(req: Request, context: Params) {
 			)
 			isSubscribed = existing.rows.length > 0
 		} catch {
-			// not authenticated — that's fine
+			// not authenticated
 		}
 
 		const countResult = await pool.query(

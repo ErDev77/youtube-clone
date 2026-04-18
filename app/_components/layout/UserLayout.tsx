@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, lazy, Suspense, useEffect } from 'react'
+import { useState, lazy, Suspense, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useTranslations } from '@/translations/translations'
 import { useLanguage } from '@/context/LanguageContext'
 import UserMenu from '../auth/UserMenu'
@@ -19,6 +19,22 @@ type SubscribedChannel = {
 	username: string
 	display_name?: string
 	avatar_url?: string
+}
+
+type NotificationType = 'video_liked' | 'new_subscriber' | 'new_video'
+
+type Notification = {
+	id: string
+	type: NotificationType
+	is_read: boolean
+	created_at: string
+	video_id: string | null
+	actor_id: string
+	actor_username: string
+	actor_display_name: string | null
+	actor_avatar_url: string | null
+	video_title: string | null
+	video_thumbnail: string | null
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -100,6 +116,10 @@ const languages = [
 	{ code: 'gb', label: 'English', flag: 'https://flagcdn.com/w20/gb.png' },
 ]
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────────────────────────────────────────── */
+
 function colorFromId(id: string): string {
 	const colors = [
 		'#e63946',
@@ -113,6 +133,525 @@ function colorFromId(id: string): string {
 	for (const c of id) hash = (hash * 31 + c.charCodeAt(0)) | 0
 	return colors[Math.abs(hash) % colors.length]
 }
+
+function timeAgo(iso: string) {
+	const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+	if (d < 1) {
+		const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000)
+		if (h < 1) {
+			const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+			return m < 1 ? 'just now' : `${m}m ago`
+		}
+		return `${h}h ago`
+	}
+	if (d < 7) return `${d}d ago`
+	if (d < 30) return `${Math.floor(d / 7)}w ago`
+	return `${Math.floor(d / 30)}mo ago`
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   NOTIFICATION BELL
+───────────────────────────────────────────────────────────────────────────── */
+
+function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
+	const router = useRouter()
+	const [open, setOpen] = useState(false)
+	const [notifications, setNotifications] = useState<Notification[]>([])
+	const [unreadCount, setUnreadCount] = useState(0)
+	const [loading, setLoading] = useState(false)
+	const [fetched, setFetched] = useState(false)
+	const menuRef = useRef<HTMLDivElement>(null)
+
+	// Close on outside click
+	useEffect(() => {
+		function handler(e: MouseEvent) {
+			if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+				setOpen(false)
+			}
+		}
+		document.addEventListener('mousedown', handler)
+		return () => document.removeEventListener('mousedown', handler)
+	}, [])
+
+	// Poll unread count every 60 seconds when authenticated
+	const fetchCount = useCallback(async () => {
+		if (!isAuthenticated) return
+		try {
+			const res = await fetch('/api/me/notifications')
+			const data = await res.json()
+			if (data.ok) setUnreadCount(data.data.unread_count)
+		} catch {}
+	}, [isAuthenticated])
+
+	useEffect(() => {
+		fetchCount()
+		const interval = setInterval(fetchCount, 60_000)
+		return () => clearInterval(interval)
+	}, [fetchCount])
+
+	async function fetchNotifications() {
+		setLoading(true)
+		try {
+			const res = await fetch('/api/me/notifications')
+			const data = await res.json()
+			if (data.ok) {
+				setNotifications(data.data.items)
+				setUnreadCount(data.data.unread_count)
+				setFetched(true)
+			}
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	async function markAllRead() {
+		await fetch('/api/me/notifications', { method: 'PATCH' })
+		setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+		setUnreadCount(0)
+	}
+
+	async function markRead(id: string) {
+		await fetch('/api/me/notifications', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ ids: [id] }),
+		})
+		setNotifications(prev =>
+			prev.map(n => (n.id === id ? { ...n, is_read: true } : n)),
+		)
+		setUnreadCount(prev => Math.max(0, prev - 1))
+	}
+
+	function handleOpen() {
+		if (!isAuthenticated) return
+		setOpen(v => {
+			const next = !v
+			if (next && !fetched) fetchNotifications()
+			return next
+		})
+	}
+
+	function notificationIcon(type: NotificationType) {
+		if (type === 'video_liked') return '👍'
+		if (type === 'new_subscriber') return '🔔'
+		return '🎬'
+	}
+
+	function notificationText(n: Notification) {
+		const actor = n.actor_display_name || n.actor_username
+		if (n.type === 'video_liked')
+			return (
+				<>
+					<span style={{ fontWeight: 600, color: '#fff' }}>{actor}</span>
+					{' liked your video '}
+					{n.video_title && (
+						<span style={{ fontWeight: 600, color: '#e63946' }}>
+							&ldquo;{n.video_title}&rdquo;
+						</span>
+					)}
+				</>
+			)
+		if (n.type === 'new_subscriber')
+			return (
+				<>
+					<span style={{ fontWeight: 600, color: '#fff' }}>{actor}</span>
+					{' subscribed to your channel'}
+				</>
+			)
+		return (
+			<>
+				<span style={{ fontWeight: 600, color: '#fff' }}>{actor}</span>
+				{' uploaded a new video '}
+				{n.video_title && (
+					<span style={{ fontWeight: 600, color: '#e63946' }}>
+						&ldquo;{n.video_title}&rdquo;
+					</span>
+				)}
+			</>
+		)
+	}
+
+	function handleNotificationClick(n: Notification) {
+		if (!n.is_read) markRead(n.id)
+		setOpen(false)
+		if (n.video_id && (n.type === 'video_liked' || n.type === 'new_video')) {
+			router.push(`/en/watch/${n.video_id}`)
+		} else if (n.type === 'new_subscriber') {
+			router.push(`/en/channel/${n.actor_id}`)
+		}
+	}
+
+	return (
+		<div ref={menuRef} style={{ position: 'relative' }}>
+			<button
+				onClick={handleOpen}
+				style={{
+					position: 'relative',
+					width: 36,
+					height: 36,
+					borderRadius: '50%',
+					background: open ? 'rgba(255,255,255,0.06)' : 'none',
+					border: 'none',
+					cursor: isAuthenticated ? 'pointer' : 'default',
+					color: '#555',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					transition: 'background 0.15s, color 0.15s',
+				}}
+				onMouseEnter={e => {
+					if (isAuthenticated) {
+						e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+						e.currentTarget.style.color = '#ccc'
+					}
+				}}
+				onMouseLeave={e => {
+					if (!open) {
+						e.currentTarget.style.background = 'none'
+						e.currentTarget.style.color = '#555'
+					}
+				}}
+				aria-label='Notifications'
+			>
+				<svg width='18' height='18' viewBox='0 0 24 24' fill='currentColor'>
+					<path d='M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z' />
+				</svg>
+				{isAuthenticated && unreadCount > 0 && (
+					<span
+						style={{
+							position: 'absolute',
+							top: 4,
+							right: 4,
+							minWidth: unreadCount > 9 ? 16 : 14,
+							height: 14,
+							background: '#e63946',
+							borderRadius: 7,
+							border: '1.5px solid #0a0a0a',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+							fontSize: 9,
+							fontWeight: 800,
+							color: '#fff',
+							padding: '0 3px',
+							lineHeight: 1,
+						}}
+					>
+						{unreadCount > 99 ? '99+' : unreadCount}
+					</span>
+				)}
+			</button>
+
+			{open && isAuthenticated && (
+				<div
+					style={{
+						position: 'absolute',
+						top: 'calc(100% + 10px)',
+						right: 0,
+						width: 380,
+						maxHeight: 520,
+						background: '#141414',
+						border: '1px solid #222',
+						borderRadius: 14,
+						boxShadow: '0 12px 40px rgba(0,0,0,0.7)',
+						overflow: 'hidden',
+						display: 'flex',
+						flexDirection: 'column',
+						zIndex: 200,
+						animation: 'notifSlideIn 0.15s ease',
+					}}
+				>
+					{/* Header */}
+					<div
+						style={{
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'space-between',
+							padding: '14px 18px',
+							borderBottom: '1px solid #1e1e1e',
+							flexShrink: 0,
+						}}
+					>
+						<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+							<span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
+								Notifications
+							</span>
+							{unreadCount > 0 && (
+								<span
+									style={{
+										fontSize: 11,
+										fontWeight: 700,
+										background: 'rgba(230,57,70,0.15)',
+										color: '#e63946',
+										padding: '2px 8px',
+										borderRadius: 10,
+										border: '1px solid rgba(230,57,70,0.3)',
+									}}
+								>
+									{unreadCount} new
+								</span>
+							)}
+						</div>
+						{unreadCount > 0 && (
+							<button
+								onClick={markAllRead}
+								style={{
+									background: 'none',
+									border: 'none',
+									cursor: 'pointer',
+									fontSize: 12,
+									color: '#e63946',
+									fontFamily: 'inherit',
+									fontWeight: 600,
+									padding: '4px 8px',
+									borderRadius: 6,
+									transition: 'background 0.15s',
+								}}
+								onMouseEnter={e =>
+									(e.currentTarget.style.background = 'rgba(230,57,70,0.08)')
+								}
+								onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+							>
+								Mark all read
+							</button>
+						)}
+					</div>
+
+					{/* Body */}
+					<div style={{ overflowY: 'auto', flex: 1, scrollbarWidth: 'thin' }}>
+						{loading ? (
+							<div
+								style={{
+									padding: '32px 0',
+									display: 'flex',
+									justifyContent: 'center',
+								}}
+							>
+								<span
+									style={{
+										width: 22,
+										height: 22,
+										border: '2px solid #222',
+										borderTopColor: '#e63946',
+										borderRadius: '50%',
+										display: 'inline-block',
+										animation: 'spin 0.7s linear infinite',
+									}}
+								/>
+							</div>
+						) : notifications.length === 0 ? (
+							<div
+								style={{
+									display: 'flex',
+									flexDirection: 'column',
+									alignItems: 'center',
+									justifyContent: 'center',
+									padding: '48px 24px',
+									gap: 12,
+								}}
+							>
+								<div
+									style={{
+										width: 52,
+										height: 52,
+										borderRadius: '50%',
+										background: 'rgba(230,57,70,0.08)',
+										border: '1px solid rgba(230,57,70,0.15)',
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'center',
+									}}
+								>
+									<svg
+										width='22'
+										height='22'
+										viewBox='0 0 24 24'
+										fill='none'
+										stroke='#e63946'
+										strokeWidth='1.5'
+									>
+										<path d='M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z' />
+									</svg>
+								</div>
+								<p
+									style={{
+										fontSize: 14,
+										color: '#555',
+										textAlign: 'center',
+										margin: 0,
+									}}
+								>
+									No notifications yet
+								</p>
+								<p
+									style={{
+										fontSize: 12,
+										color: '#3a3a3a',
+										textAlign: 'center',
+										margin: 0,
+										lineHeight: 1.5,
+									}}
+								>
+									You&apos;ll see likes, new subscribers,
+									<br />
+									and videos from channels you follow here.
+								</p>
+							</div>
+						) : (
+							notifications.map(n => {
+								const actorName = n.actor_display_name || n.actor_username
+								const actorColor = colorFromId(n.actor_id)
+
+								return (
+									<div
+										key={n.id}
+										onClick={() => handleNotificationClick(n)}
+										style={{
+											display: 'flex',
+											alignItems: 'flex-start',
+											gap: 12,
+											padding: '12px 18px',
+											cursor: 'pointer',
+											background: n.is_read
+												? 'transparent'
+												: 'rgba(230,57,70,0.04)',
+											borderBottom: '1px solid #181818',
+											transition: 'background 0.12s',
+											position: 'relative',
+										}}
+										onMouseEnter={e =>
+											(e.currentTarget.style.background = '#1a1a1a')
+										}
+										onMouseLeave={e =>
+											(e.currentTarget.style.background = n.is_read
+												? 'transparent'
+												: 'rgba(230,57,70,0.04)')
+										}
+									>
+										{/* Unread dot */}
+										{!n.is_read && (
+											<div
+												style={{
+													position: 'absolute',
+													left: 6,
+													top: '50%',
+													transform: 'translateY(-50%)',
+													width: 5,
+													height: 5,
+													borderRadius: '50%',
+													background: '#e63946',
+													flexShrink: 0,
+												}}
+											/>
+										)}
+
+										{/* Actor avatar */}
+										<div style={{ position: 'relative', flexShrink: 0 }}>
+											{n.actor_avatar_url ? (
+												<img
+													src={n.actor_avatar_url}
+													alt={actorName}
+													style={{
+														width: 38,
+														height: 38,
+														borderRadius: '50%',
+														objectFit: 'cover',
+													}}
+												/>
+											) : (
+												<div
+													style={{
+														width: 38,
+														height: 38,
+														borderRadius: '50%',
+														background: actorColor,
+														display: 'flex',
+														alignItems: 'center',
+														justifyContent: 'center',
+														fontSize: 13,
+														fontWeight: 700,
+														color: '#fff',
+													}}
+												>
+													{actorName.slice(0, 2).toUpperCase()}
+												</div>
+											)}
+											{/* Type badge on avatar */}
+											<div
+												style={{
+													position: 'absolute',
+													bottom: -2,
+													right: -2,
+													width: 18,
+													height: 18,
+													borderRadius: '50%',
+													background: '#1a1a1a',
+													border: '1.5px solid #141414',
+													display: 'flex',
+													alignItems: 'center',
+													justifyContent: 'center',
+													fontSize: 10,
+												}}
+											>
+												{notificationIcon(n.type)}
+											</div>
+										</div>
+
+										{/* Content */}
+										<div style={{ flex: 1, minWidth: 0 }}>
+											<p
+												style={{
+													fontSize: 13,
+													color: '#aaa',
+													margin: '0 0 3px',
+													lineHeight: 1.5,
+												}}
+											>
+												{notificationText(n)}
+											</p>
+											<p style={{ fontSize: 11, color: '#555', margin: 0 }}>
+												{timeAgo(n.created_at)}
+											</p>
+										</div>
+
+										{/* Video thumbnail (for video events) */}
+										{n.video_thumbnail &&
+											(n.type === 'video_liked' || n.type === 'new_video') && (
+												<div
+													style={{
+														width: 52,
+														height: 30,
+														borderRadius: 5,
+														overflow: 'hidden',
+														background: '#1a1a1a',
+														flexShrink: 0,
+													}}
+												>
+													<img
+														src={n.video_thumbnail}
+														alt=''
+														style={{
+															width: '100%',
+															height: '100%',
+															objectFit: 'cover',
+														}}
+													/>
+												</div>
+											)}
+									</div>
+								)
+							})
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	)
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SIDEBAR HELPERS
+───────────────────────────────────────────────────────────────────────────── */
 
 function Chevron({ open }: { open: boolean }) {
 	return (
@@ -254,10 +793,6 @@ function Divider() {
 	)
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   CHANNEL AVATAR (mini, for subscriptions list)
-───────────────────────────────────────────────────────────────────────────── */
-
 function ChannelAvatar({ channel }: { channel: SubscribedChannel }) {
 	const name = channel.display_name || channel.username
 	const color = colorFromId(channel.id)
@@ -317,7 +852,6 @@ export default function UserLayout({
 	const [langOpen, setLangOpen] = useState(false)
 	const [uploadOpen, setUploadOpen] = useState(false)
 
-	// Subscriptions data
 	const [subscribedChannels, setSubscribedChannels] = useState<
 		SubscribedChannel[]
 	>([])
@@ -326,7 +860,6 @@ export default function UserLayout({
 	const { language } = useLanguage()
 	const { user, isAuthenticated } = useAuthContext()
 
-	// Fetch subscriptions when user is authenticated
 	useEffect(() => {
 		if (!isAuthenticated) {
 			setSubscribedChannels([])
@@ -335,9 +868,7 @@ export default function UserLayout({
 		fetch('/api/me/subscriptions')
 			.then(r => r.json())
 			.then(data => {
-				if (data.ok) {
-					setSubscribedChannels(data.data.items.slice(0, 12))
-				}
+				if (data.ok) setSubscribedChannels(data.data.items.slice(0, 12))
 			})
 			.catch(() => {})
 	}, [isAuthenticated])
@@ -356,15 +887,19 @@ export default function UserLayout({
 			}}
 		>
 			<style>{`
-				@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
-				* { box-sizing: border-box; }
-				::-webkit-scrollbar { width: 4px; height: 4px; }
-				::-webkit-scrollbar-track { background: transparent; }
-				::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
-				::-webkit-scrollbar-thumb:hover { background: #333; }
-				@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
-				@keyframes spin { to { transform: rotate(360deg) } }
-			`}</style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #333; }
+        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes spin { to { transform: rotate(360deg) } }
+        @keyframes notifSlideIn {
+          from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
 
 			{/* HEADER */}
 			<header
@@ -640,46 +1175,8 @@ export default function UserLayout({
 						</button>
 					)}
 
-					<button
-						style={{
-							position: 'relative',
-							width: 36,
-							height: 36,
-							borderRadius: '50%',
-							background: 'none',
-							border: 'none',
-							cursor: 'pointer',
-							color: '#555',
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'center',
-							transition: 'background 0.15s, color 0.15s',
-						}}
-						onMouseEnter={e => {
-							e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-							e.currentTarget.style.color = '#ccc'
-						}}
-						onMouseLeave={e => {
-							e.currentTarget.style.background = 'none'
-							e.currentTarget.style.color = '#555'
-						}}
-					>
-						<svg width='18' height='18' viewBox='0 0 24 24' fill='currentColor'>
-							<path d='M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z' />
-						</svg>
-						<span
-							style={{
-								position: 'absolute',
-								top: 6,
-								right: 6,
-								width: 7,
-								height: 7,
-								background: '#e63946',
-								borderRadius: '50%',
-								border: '1.5px solid #0a0a0a',
-							}}
-						/>
-					</button>
+					{/* ── NOTIFICATION BELL ── */}
+					<NotificationBell isAuthenticated={isAuthenticated} />
 
 					<UserMenu />
 				</div>
@@ -713,7 +1210,6 @@ export default function UserLayout({
 							gap: 2,
 						}}
 					>
-						{/* Main nav */}
 						{mainNav.map(item => (
 							<NavItem
 								key={item.label}
@@ -724,7 +1220,6 @@ export default function UserLayout({
 
 						<Divider />
 
-						{/* You section */}
 						<SectionLabel
 							label='You'
 							open={youOpen}
@@ -744,7 +1239,6 @@ export default function UserLayout({
 
 						<Divider />
 
-						{/* Subscriptions section */}
 						<SectionLabel
 							label='Subscriptions'
 							open={subsOpen}
@@ -864,7 +1358,6 @@ export default function UserLayout({
 												</Link>
 											)
 										})}
-										{/* View all subscriptions link */}
 										<Link
 											href='/en/subscriptions'
 											style={{
@@ -901,7 +1394,6 @@ export default function UserLayout({
 
 						<Divider />
 
-						{/* Languages section */}
 						<SectionLabel
 							label='Languages'
 							open={langOpen}

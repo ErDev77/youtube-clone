@@ -6,9 +6,6 @@ import { pool } from '@/lib/db'
 type Params = { params: { id: string } | Promise<{ id: string }> }
 
 // POST /api/videos/[id]/like
-// Body: { action: 'like' | 'dislike' }
-// Toggles: if already liked/disliked with same action → removes it (un-like/un-dislike)
-//          if opposite action → switches
 export async function POST(req: Request, context: Params) {
 	try {
 		const session = await requireSession()
@@ -20,7 +17,6 @@ export async function POST(req: Request, context: Params) {
 		const action: 'like' | 'dislike' =
 			body.action === 'dislike' ? 'dislike' : 'like'
 
-		// Check existing reaction
 		const existing = await pool.query(
 			'SELECT action FROM video_reactions WHERE user_id = $1 AND video_id = $2',
 			[session.userId, videoId],
@@ -28,51 +24,60 @@ export async function POST(req: Request, context: Params) {
 
 		let liked = false
 		let disliked = false
+		let justLiked = false
 
 		if (existing.rows.length > 0) {
 			const currentAction = existing.rows[0].action
-
 			if (currentAction === action) {
-				// Same action → remove (toggle off)
 				await pool.query(
 					'DELETE FROM video_reactions WHERE user_id = $1 AND video_id = $2',
 					[session.userId, videoId],
 				)
 			} else {
-				// Different action → switch
 				await pool.query(
 					'UPDATE video_reactions SET action = $1 WHERE user_id = $2 AND video_id = $3',
 					[action, session.userId, videoId],
 				)
 				liked = action === 'like'
 				disliked = action === 'dislike'
+				justLiked = action === 'like'
 			}
 		} else {
-			// No existing reaction → insert
 			await pool.query(
 				'INSERT INTO video_reactions (user_id, video_id, action) VALUES ($1, $2, $3)',
 				[session.userId, videoId, action],
 			)
 			liked = action === 'like'
 			disliked = action === 'dislike'
+			justLiked = action === 'like'
 		}
 
-		// Recount from reactions table for accuracy
 		const counts = await pool.query(
 			`SELECT
-				COUNT(*) FILTER (WHERE action = 'like') AS likes_count,
-				COUNT(*) FILTER (WHERE action = 'dislike') AS dislikes_count
-			FROM video_reactions WHERE video_id = $1`,
+        COUNT(*) FILTER (WHERE action = 'like') AS likes_count,
+        COUNT(*) FILTER (WHERE action = 'dislike') AS dislikes_count
+      FROM video_reactions WHERE video_id = $1`,
 			[videoId],
 		)
-
 		const { likes_count, dislikes_count } = counts.rows[0]
 
-		// Update denormalized counts on the videos table
 		await pool.query(
 			'UPDATE videos SET likes_count = $1, dislikes_count = $2 WHERE id = $3',
 			[likes_count, dislikes_count, videoId],
 		)
+
+		// 🔔 video_liked notification (non-blocking, skip if you liked your own video)
+		if (justLiked) {
+			pool
+				.query(
+					`INSERT INTO notifications (recipient_id, actor_id, type, video_id)
+         SELECT v.user_id, $1, 'video_liked', $2
+         FROM videos v
+         WHERE v.id = $2 AND v.user_id <> $1`,
+					[session.userId, videoId],
+				)
+				.catch(() => {})
+		}
 
 		return NextResponse.json({
 			ok: true,
@@ -114,17 +119,16 @@ export async function GET(req: Request, context: Params) {
 				disliked = existing.rows[0].action === 'dislike'
 			}
 		} catch {
-			// not authenticated — return defaults
+			// not authenticated
 		}
 
 		const counts = await pool.query(
 			`SELECT
-				COUNT(*) FILTER (WHERE action = 'like') AS likes_count,
-				COUNT(*) FILTER (WHERE action = 'dislike') AS dislikes_count
-			FROM video_reactions WHERE video_id = $1`,
+        COUNT(*) FILTER (WHERE action = 'like') AS likes_count,
+        COUNT(*) FILTER (WHERE action = 'dislike') AS dislikes_count
+      FROM video_reactions WHERE video_id = $1`,
 			[videoId],
 		)
-
 		const { likes_count, dislikes_count } = counts.rows[0]
 
 		return NextResponse.json({

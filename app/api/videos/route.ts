@@ -1,3 +1,5 @@
+// app/api/videos/route.ts
+// Updated to support ?video_type=shorts|normal filtering
 import { NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { pool } from '@/lib/db'
@@ -7,6 +9,7 @@ export async function GET(req: Request) {
 	try {
 		const { searchParams } = new URL(req.url)
 		const category = searchParams.get('category')
+		const video_type = searchParams.get('video_type') // ← NEW
 		const cursor_created_at = searchParams.get('cursor_created_at')
 		const cursor_id = searchParams.get('cursor_id')
 		const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50)
@@ -19,6 +22,10 @@ export async function GET(req: Request) {
 			where += ` AND v.category = $${i++}`
 			values.push(category)
 		}
+		if (video_type) {
+			where += ` AND v.video_type = $${i++}`
+			values.push(video_type)
+		}
 		if (cursor_created_at && cursor_id) {
 			where += ` AND (v.created_at, v.id) < ($${i++}::timestamptz, $${i++}::uuid)`
 			values.push(cursor_created_at, cursor_id)
@@ -26,16 +33,14 @@ export async function GET(req: Request) {
 		values.push(limit + 1)
 
 		const { rows } = await pool.query(
-			`
-			SELECT v.id, v.title, v.thumbnail_url, v.video_url, v.category,
-			       v.video_type, v.views_count, v.likes_count, v.created_at,
-			       u.id AS uploader_id, u.username, u.display_name, u.avatar_url
-			FROM videos v
-			JOIN users u ON u.id = v.user_id
-			${where}
-			ORDER BY v.created_at DESC, v.id DESC
-			LIMIT $${i}
-		`,
+			`SELECT v.id, v.title, v.thumbnail_url, v.video_url, v.category,
+              v.video_type, v.views_count, v.likes_count, v.created_at,
+              u.id AS uploader_id, u.username, u.display_name, u.avatar_url
+       FROM videos v
+       JOIN users u ON u.id = v.user_id
+       ${where}
+       ORDER BY v.created_at DESC, v.id DESC
+       LIMIT $${i}`,
 			values,
 		)
 
@@ -67,7 +72,8 @@ export async function GET(req: Request) {
 					uploader: {
 						id: r.uploader_id,
 						username: r.display_name || r.username,
-						avatar_url: r.avatar_url,
+						display_name: r.display_name ?? null,
+						avatar_url: r.avatar_url ?? null,
 					},
 				})),
 			},
@@ -103,8 +109,8 @@ export async function POST(req: Request) {
 		const id = randomUUID()
 		const { rows } = await pool.query(
 			`INSERT INTO videos (id, user_id, title, description, thumbnail_url, video_url, category, video_type)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-			 RETURNING id, title, thumbnail_url, video_url, category, video_type, views_count, likes_count, created_at`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING id, title, thumbnail_url, video_url, category, video_type, views_count, likes_count, created_at`,
 			[
 				id,
 				session.userId,
@@ -116,6 +122,17 @@ export async function POST(req: Request) {
 				video_type || 'normal',
 			],
 		)
+
+		// 🔔 Notify all subscribers about the new video (non-blocking)
+		pool
+			.query(
+				`INSERT INTO notifications (recipient_id, actor_id, type, video_id)
+       SELECT s.subscriber_id, $1, 'new_video', $2
+       FROM subscriptions s
+       WHERE s.channel_id = $1`,
+				[session.userId, id],
+			)
+			.catch(() => {})
 
 		return NextResponse.json(
 			{ ok: true, data: { video: rows[0] } },
