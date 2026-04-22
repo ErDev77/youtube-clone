@@ -5,7 +5,7 @@ import { pool } from '@/lib/db'
 
 type Params = { params: { id: string } | Promise<{ id: string }> }
 
-// POST /api/comments/[id]/like — toggle like on a comment
+// POST /api/comments/[id]/like — toggle like or dislike on a comment
 export async function POST(req: Request, context: Params) {
 	try {
 		const session = await requireSession()
@@ -13,41 +13,77 @@ export async function POST(req: Request, context: Params) {
 			'then' in context.params ? await context.params : context.params
 		const { id: commentId } = params
 
+		const body = await req.json().catch(() => ({}))
+		const action: 'like' | 'dislike' =
+			body.action === 'dislike' ? 'dislike' : 'like'
+
 		const existing = await pool.query(
-			'SELECT 1 FROM comment_likes WHERE user_id = $1 AND comment_id = $2',
+			'SELECT action FROM comment_likes WHERE user_id = $1 AND comment_id = $2',
 			[session.userId, commentId],
 		)
 
+		let liked = false
+		let disliked = false
+
 		if (existing.rows.length > 0) {
-			await pool.query(
-				'DELETE FROM comment_likes WHERE user_id = $1 AND comment_id = $2',
-				[session.userId, commentId],
-			)
-			await pool.query(
-				'UPDATE comments SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = $1',
-				[commentId],
-			)
+			const currentAction = existing.rows[0].action
+			if (currentAction === action) {
+				// Toggle off
+				await pool.query(
+					'DELETE FROM comment_likes WHERE user_id = $1 AND comment_id = $2',
+					[session.userId, commentId],
+				)
+			} else {
+				// Switch reaction
+				await pool.query(
+					'UPDATE comment_likes SET action = $1 WHERE user_id = $2 AND comment_id = $3',
+					[action, session.userId, commentId],
+				)
+				liked = action === 'like'
+				disliked = action === 'dislike'
+			}
 		} else {
 			await pool.query(
-				'INSERT INTO comment_likes (user_id, comment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-				[session.userId, commentId],
+				'INSERT INTO comment_likes (user_id, comment_id, action) VALUES ($1, $2, $3)',
+				[session.userId, commentId, action],
 			)
-			await pool.query(
-				'UPDATE comments SET likes_count = likes_count + 1 WHERE id = $1',
-				[commentId],
-			)
+			liked = action === 'like'
+			disliked = action === 'dislike'
 		}
 
-		const result = await pool.query(
-			'SELECT likes_count FROM comments WHERE id = $1',
+		// Recount
+		const counts = await pool.query(
+			`SELECT
+				COUNT(*) FILTER (WHERE action = 'like') AS likes_count,
+				COUNT(*) FILTER (WHERE action = 'dislike') AS dislikes_count
+			FROM comment_likes WHERE comment_id = $1`,
 			[commentId],
 		)
+		const { likes_count, dislikes_count } = counts.rows[0]
+
+		// Sync counts to comments table
+		await pool
+			.query(
+				'UPDATE comments SET likes_count = $1, dislikes_count = $2 WHERE id = $3',
+				[likes_count, dislikes_count, commentId],
+			)
+			.catch(() => {
+				// dislikes_count column may not exist yet — just update likes
+				pool
+					.query('UPDATE comments SET likes_count = $1 WHERE id = $2', [
+						likes_count,
+						commentId,
+					])
+					.catch(() => {})
+			})
 
 		return NextResponse.json({
 			ok: true,
 			data: {
-				liked: existing.rows.length === 0,
-				likes_count: result.rows[0]?.likes_count ?? 0,
+				liked,
+				disliked,
+				likes_count: parseInt(likes_count, 10),
+				dislikes_count: parseInt(dislikes_count, 10),
 			},
 		})
 	} catch (err) {
