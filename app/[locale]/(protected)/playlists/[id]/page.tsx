@@ -501,6 +501,19 @@ export default function PlaylistDetailPage() {
 	const coverThumb = videos[0]?.thumbnail_url ?? null
 	const totalViews = videos.reduce((s, v) => s + v.views_count, 0)
 
+	// ── Stats rows — use unique label-based keys ──
+	const stats: { label: string; value: string }[] = [
+		{
+			label: 'videos',
+			value: `${playlist.video_count} ${playlist.video_count === 1 ? 'video' : 'videos'}`,
+		},
+		{ label: 'views', value: `${fmt(totalViews)} views` },
+		{
+			label: 'visibility',
+			value: playlist.visibility === 'private' ? '🔒 Private' : '🌐 Public',
+		},
+	]
+
 	return (
 		<UserLayout>
 			<style>{`
@@ -625,7 +638,7 @@ export default function PlaylistDetailPage() {
 						<span style={{ fontSize: 13, color: '#888' }}>{ownerName}</span>
 					</Link>
 
-					{/* Stats row */}
+					{/* Stats row — keyed by label to avoid duplicate key warnings */}
 					<div
 						style={{
 							display: 'flex',
@@ -634,24 +647,11 @@ export default function PlaylistDetailPage() {
 							flexWrap: 'wrap',
 						}}
 					>
-						{[
-							[
-								String(playlist.video_count),
-								playlist.video_count === 1 ? 'video' : 'videos',
-							],
-							[fmt(totalViews), 'views'],
-							[
-								playlist.visibility === 'private' ? '🔒 Private' : '🌐 Public',
-								'',
-							],
-						].map(([val, label]) => (
-							<div key={val}>
+						{stats.map(({ label, value }) => (
+							<div key={label}>
 								<span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
-									{val}
+									{value}
 								</span>
-								{label && (
-									<span style={{ fontSize: 12, color: '#666' }}> {label}</span>
-								)}
 							</div>
 						))}
 					</div>
@@ -673,7 +673,7 @@ export default function PlaylistDetailPage() {
 						Updated {timeAgo(playlist.updated_at)}
 					</p>
 
-					{/* Play All — uses queue */}
+					{/* Play All */}
 					{videos.length > 0 && (
 						<button
 							onClick={() => playAt(0)}

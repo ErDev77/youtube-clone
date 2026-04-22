@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useAuthContext } from '@/context/AuthContext'
 
 const CATEGORIES = [
@@ -18,46 +18,25 @@ const VIDEO_TYPES = [
 
 async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	const authRes = await fetch('/api/imagekit-auth')
-
-	if (!authRes.ok) {
-		const text = await authRes.text()
-		throw new Error(`Auth failed: ${text}`)
-	}
-
+	if (!authRes.ok) throw new Error(`Auth failed: ${await authRes.text()}`)
 	const { token, expire, signature } = await authRes.json()
-
-	const publicKey = process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!
-	const uploadEndpoint = process.env.NEXT_PUBLIC_IMAGEKIT_UPLOAD_ENDPOINT!
-
-	if (!uploadEndpoint) {
-		throw new Error('Upload endpoint missing')
-	}
-
 	const form = new FormData()
 	form.append('file', file)
 	form.append('fileName', `${Date.now()}-${file.name}`)
 	form.append('folder', folder)
-	form.append('publicKey', publicKey)
+	form.append('publicKey', process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!)
 	form.append('signature', signature)
 	form.append('expire', String(expire))
 	form.append('token', token)
-
-	const uploadRes = await fetch(`${uploadEndpoint}/api/v1/files/upload`, {
-		method: 'POST',
-		body: form,
-	})
-
-	if (!uploadRes.ok) {
-		const text = await uploadRes.text()
-		throw new Error(`Upload failed: ${text}`)
-	}
-
-	const data = await uploadRes.json()
-	return data.url
+	const uploadRes = await fetch(
+		`${process.env.NEXT_PUBLIC_IMAGEKIT_UPLOAD_ENDPOINT!}/api/v1/files/upload`,
+		{ method: 'POST', body: form },
+	)
+	if (!uploadRes.ok) throw new Error(`Upload failed: ${await uploadRes.text()}`)
+	return (await uploadRes.json()).url
 }
 
 async function uploadVideoToR2(file: File): Promise<string> {
-	// Get presigned URL from your API
 	const res = await fetch('/api/r2-upload-url', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -65,16 +44,65 @@ async function uploadVideoToR2(file: File): Promise<string> {
 	})
 	if (!res.ok) throw new Error('Failed to get upload URL')
 	const { data } = await res.json()
-
-	// Upload directly to R2 from the browser
 	const uploadRes = await fetch(data.uploadUrl, {
 		method: 'PUT',
 		body: file,
 		headers: { 'Content-Type': file.type },
 	})
 	if (!uploadRes.ok) throw new Error('Upload to R2 failed')
-
 	return data.publicUrl
+}
+
+/**
+ * Extracts a frame from a video File at `seekTo` seconds (default 1s),
+ * returns it as a PNG File ready for upload.
+ */
+function extractVideoFrame(videoFile: File, seekTo = 1): Promise<File> {
+	return new Promise((resolve, reject) => {
+		const video = document.createElement('video')
+		video.preload = 'metadata'
+		video.muted = true
+		video.playsInline = true
+
+		const objectUrl = URL.createObjectURL(videoFile)
+		video.src = objectUrl
+
+		video.addEventListener('loadedmetadata', () => {
+			// Clamp seek to within the video duration
+			const target = Math.min(
+				seekTo,
+				video.duration * 0.25,
+				video.duration - 0.1,
+			)
+			video.currentTime = Math.max(0, target)
+		})
+
+		video.addEventListener('seeked', () => {
+			const canvas = document.createElement('canvas')
+			canvas.width = video.videoWidth || 1280
+			canvas.height = video.videoHeight || 720
+			const ctx = canvas.getContext('2d')
+			if (!ctx) {
+				URL.revokeObjectURL(objectUrl)
+				reject(new Error('Canvas context unavailable'))
+				return
+			}
+			ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+			URL.revokeObjectURL(objectUrl)
+			canvas.toBlob(blob => {
+				if (!blob) {
+					reject(new Error('Failed to extract frame'))
+					return
+				}
+				resolve(new File([blob], 'auto-thumbnail.png', { type: 'image/png' }))
+			}, 'image/png')
+		})
+
+		video.addEventListener('error', () => {
+			URL.revokeObjectURL(objectUrl)
+			reject(new Error('Video load error'))
+		})
+	})
 }
 
 interface VideoUploadFormProps {
@@ -89,11 +117,13 @@ export default function VideoUploadForm({
 	const { user } = useAuthContext()
 	const [title, setTitle] = useState('')
 	const [description, setDescription] = useState('')
-	const [category, setCategory] = useState<string | null>('No category')
+	const [category, setCategory] = useState<string | null>(null)
 	const [videoType, setVideoType] = useState<'normal' | 'shorts'>('normal')
 	const [videoFile, setVideoFile] = useState<File | null>(null)
 	const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
 	const [thumbnailPreview, setThumbnailPreview] = useState('')
+	const [autoThumbnail, setAutoThumbnail] = useState(false)
+	const [generatingThumb, setGeneratingThumb] = useState(false)
 	const [uploading, setUploading] = useState(false)
 	const [progress, setProgress] = useState(0)
 	const [progressLabel, setProgressLabel] = useState('')
@@ -103,12 +133,41 @@ export default function VideoUploadForm({
 	const videoRef = useRef<HTMLInputElement>(null)
 	const thumbRef = useRef<HTMLInputElement>(null)
 
+	// Auto-generate thumbnail whenever a video is selected and no manual thumb exists
+	useEffect(() => {
+		if (!videoFile || thumbnailFile) return
+		let cancelled = false
+
+		setGeneratingThumb(true)
+		extractVideoFrame(videoFile)
+			.then(frameFile => {
+				if (cancelled) return
+				setThumbnailFile(frameFile)
+				setThumbnailPreview(URL.createObjectURL(frameFile))
+				setAutoThumbnail(true)
+			})
+			.catch(() => {
+				// Silently fail — user can still add manually
+			})
+			.finally(() => {
+				if (!cancelled) setGeneratingThumb(false)
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [videoFile]) // eslint-disable-line react-hooks/exhaustive-deps
+
 	const handleVideoDrop = useCallback((e: React.DragEvent) => {
 		e.preventDefault()
 		setDragOver(false)
 		const file = e.dataTransfer.files[0]
 		if (file && file.type.startsWith('video/')) {
 			setVideoFile(file)
+			// Reset thumb so auto-gen triggers
+			setThumbnailFile(null)
+			setThumbnailPreview('')
+			setAutoThumbnail(false)
 		}
 	}, [])
 
@@ -117,6 +176,15 @@ export default function VideoUploadForm({
 		if (!file) return
 		setThumbnailFile(file)
 		setThumbnailPreview(URL.createObjectURL(file))
+		setAutoThumbnail(false)
+	}
+
+	const handleVideoFileChange = (file: File) => {
+		setVideoFile(file)
+		// Reset thumb so auto-gen triggers fresh
+		setThumbnailFile(null)
+		setThumbnailPreview('')
+		setAutoThumbnail(false)
 	}
 
 	async function handleSubmit(e: React.FormEvent) {
@@ -130,6 +198,7 @@ export default function VideoUploadForm({
 
 		try {
 			let thumbnail_url: string | undefined
+
 			if (thumbnailFile) {
 				setProgressLabel('Uploading thumbnail…')
 				setProgress(10)
@@ -302,6 +371,9 @@ export default function VideoUploadForm({
 											onClick={e => {
 												e.stopPropagation()
 												setVideoFile(null)
+												setThumbnailFile(null)
+												setThumbnailPreview('')
+												setAutoThumbnail(false)
 											}}
 											style={{
 												color: '#e63946',
@@ -354,7 +426,7 @@ export default function VideoUploadForm({
 						accept='video/*'
 						style={{ display: 'none' }}
 						onChange={e =>
-							e.target.files?.[0] && setVideoFile(e.target.files[0])
+							e.target.files?.[0] && handleVideoFileChange(e.target.files[0])
 						}
 					/>
 
@@ -495,9 +567,7 @@ export default function VideoUploadForm({
 
 					{/* Category */}
 					<div style={{ marginBottom: 16 }}>
-						<label style={labelStyle}>
-							Category <span style={{ color: '#e63946' }}>*</span>
-						</label>
+						<label style={labelStyle}>Category</label>
 						<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
 							<button
 								type='button'
@@ -549,106 +619,286 @@ export default function VideoUploadForm({
 
 					{/* Thumbnail */}
 					<div style={{ marginBottom: 24 }}>
-						<label style={labelStyle}>Thumbnail</label>
-						<div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-							{thumbnailPreview ? (
-								<div style={{ position: 'relative', flexShrink: 0 }}>
-									<img
-										src={thumbnailPreview}
-										alt='thumbnail preview'
+						<div
+							style={{
+								display: 'flex',
+								alignItems: 'center',
+								gap: 8,
+								marginBottom: 8,
+							}}
+						>
+							<label style={{ ...labelStyle, margin: 0 }}>Thumbnail</label>
+							{generatingThumb && (
+								<span
+									style={{
+										fontSize: 11,
+										color: '#2a9d8f',
+										display: 'flex',
+										alignItems: 'center',
+										gap: 5,
+									}}
+								>
+									<span
 										style={{
-											width: 120,
-											height: 68,
-											objectFit: 'cover',
-											borderRadius: 8,
-											border: '1px solid #222',
+											width: 10,
+											height: 10,
+											border: '1.5px solid rgba(42,157,143,0.3)',
+											borderTopColor: '#2a9d8f',
+											borderRadius: '50%',
+											display: 'inline-block',
+											animation: 'spin 0.7s linear infinite',
 										}}
 									/>
-									{!uploading && (
+									Generating…
+								</span>
+							)}
+							{autoThumbnail && !generatingThumb && (
+								<span
+									style={{
+										fontSize: 11,
+										color: '#2a9d8f',
+										background: 'rgba(42,157,143,0.1)',
+										border: '1px solid rgba(42,157,143,0.25)',
+										padding: '2px 8px',
+										borderRadius: 10,
+									}}
+								>
+									✓ Auto-generated
+								</span>
+							)}
+						</div>
+
+						<div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+							{/* Preview box */}
+							<div
+								onClick={() => !uploading && thumbRef.current?.click()}
+								style={{
+									position: 'relative',
+									width: 160,
+									height: 90,
+									borderRadius: 8,
+									overflow: 'hidden',
+									border: thumbnailPreview
+										? `2px solid ${autoThumbnail ? 'rgba(42,157,143,0.4)' : '#333'}`
+										: '2px dashed #2a2a2a',
+									background: thumbnailPreview ? 'transparent' : '#0d0d0d',
+									flexShrink: 0,
+									cursor: uploading ? 'not-allowed' : 'pointer',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									transition: 'border-color 0.2s',
+								}}
+								onMouseEnter={e => {
+									if (!uploading) e.currentTarget.style.borderColor = '#e63946'
+								}}
+								onMouseLeave={e => {
+									e.currentTarget.style.borderColor = thumbnailPreview
+										? autoThumbnail
+											? 'rgba(42,157,143,0.4)'
+											: '#333'
+										: '#2a2a2a'
+								}}
+							>
+								{thumbnailPreview ? (
+									<>
+										<img
+											src={thumbnailPreview}
+											alt='thumbnail preview'
+											style={{
+												width: '100%',
+												height: '100%',
+												objectFit: 'cover',
+											}}
+										/>
+										{/* Hover overlay */}
+										<div
+											style={{
+												position: 'absolute',
+												inset: 0,
+												background: 'rgba(0,0,0,0)',
+												display: 'flex',
+												alignItems: 'center',
+												justifyContent: 'center',
+												transition: 'background 0.15s',
+											}}
+											onMouseEnter={e =>
+												(e.currentTarget.style.background = 'rgba(0,0,0,0.5)')
+											}
+											onMouseLeave={e =>
+												(e.currentTarget.style.background = 'rgba(0,0,0,0)')
+											}
+										>
+											<span
+												style={{
+													fontSize: 11,
+													color: '#fff',
+													fontWeight: 600,
+													opacity: 0,
+													transition: 'opacity 0.15s',
+													pointerEvents: 'none',
+												}}
+												className='thumb-change-label'
+											>
+												Change
+											</span>
+										</div>
+									</>
+								) : generatingThumb ? (
+									<div style={{ textAlign: 'center', color: '#555' }}>
+										<span
+											style={{
+												width: 20,
+												height: 20,
+												border: '2px solid #1e1e1e',
+												borderTopColor: '#2a9d8f',
+												borderRadius: '50%',
+												display: 'block',
+												margin: '0 auto 6px',
+												animation: 'spin 0.7s linear infinite',
+											}}
+										/>
+										<span style={{ fontSize: 10 }}>Generating…</span>
+									</div>
+								) : (
+									<div style={{ textAlign: 'center', color: '#444' }}>
+										<svg
+											width='22'
+											height='22'
+											viewBox='0 0 24 24'
+											fill='none'
+											stroke='currentColor'
+											strokeWidth='1.5'
+											style={{ display: 'block', margin: '0 auto 4px' }}
+										>
+											<rect x='3' y='3' width='18' height='18' rx='2' />
+											<circle cx='8.5' cy='8.5' r='1.5' />
+											<path d='M21 15l-5-5L5 21' />
+										</svg>
+										<span style={{ fontSize: 10 }}>Add thumbnail</span>
+									</div>
+								)}
+							</div>
+
+							{/* Info + actions */}
+							<div style={{ flex: 1 }}>
+								<p
+									style={{
+										fontSize: 13,
+										color: '#555',
+										margin: '0 0 10px',
+										lineHeight: 1.5,
+									}}
+								>
+									{autoThumbnail
+										? 'A frame was automatically extracted from your video. Click the preview to replace it.'
+										: thumbnailPreview
+											? 'Custom thumbnail selected. Click to replace.'
+											: 'No thumbnail yet. One will be auto-generated when you select a video, or you can upload your own.'}
+								</p>
+								<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+									<button
+										type='button'
+										onClick={() => !uploading && thumbRef.current?.click()}
+										disabled={uploading}
+										style={{
+											padding: '7px 14px',
+											borderRadius: 8,
+											border: '1px solid #2a2a2a',
+											background: 'transparent',
+											color: '#888',
+											fontSize: 12,
+											cursor: uploading ? 'not-allowed' : 'pointer',
+											fontFamily: 'inherit',
+											transition: 'all 0.15s',
+										}}
+										onMouseEnter={e => {
+											e.currentTarget.style.borderColor = '#e63946'
+											e.currentTarget.style.color = '#e63946'
+										}}
+										onMouseLeave={e => {
+											e.currentTarget.style.borderColor = '#2a2a2a'
+											e.currentTarget.style.color = '#888'
+										}}
+									>
+										{thumbnailPreview ? '🖼 Replace' : '🖼 Upload'}
+									</button>
+
+									{/* Re-generate button — only shown when video is loaded */}
+									{videoFile && !generatingThumb && (
+										<button
+											type='button'
+											disabled={uploading}
+											onClick={async () => {
+												if (!videoFile) return
+												setGeneratingThumb(true)
+												try {
+													const frameFile = await extractVideoFrame(videoFile)
+													setThumbnailFile(frameFile)
+													setThumbnailPreview(URL.createObjectURL(frameFile))
+													setAutoThumbnail(true)
+												} catch {
+													// ignore
+												} finally {
+													setGeneratingThumb(false)
+												}
+											}}
+											style={{
+												padding: '7px 14px',
+												borderRadius: 8,
+												border: '1px solid #2a2a2a',
+												background: 'transparent',
+												color: '#888',
+												fontSize: 12,
+												cursor: uploading ? 'not-allowed' : 'pointer',
+												fontFamily: 'inherit',
+												transition: 'all 0.15s',
+											}}
+											onMouseEnter={e => {
+												e.currentTarget.style.borderColor = '#2a9d8f'
+												e.currentTarget.style.color = '#2a9d8f'
+											}}
+											onMouseLeave={e => {
+												e.currentTarget.style.borderColor = '#2a2a2a'
+												e.currentTarget.style.color = '#888'
+											}}
+										>
+											↺ Re-generate
+										</button>
+									)}
+
+									{thumbnailPreview && !uploading && (
 										<button
 											type='button'
 											onClick={() => {
 												setThumbnailFile(null)
 												setThumbnailPreview('')
+												setAutoThumbnail(false)
 											}}
 											style={{
-												position: 'absolute',
-												top: -6,
-												right: -6,
-												width: 20,
-												height: 20,
-												borderRadius: '50%',
-												background: '#e63946',
-												border: 'none',
-												cursor: 'pointer',
-												color: '#fff',
+												padding: '7px 14px',
+												borderRadius: 8,
+												border: '1px solid #2a2a2a',
+												background: 'transparent',
+												color: '#555',
 												fontSize: 12,
-												display: 'flex',
-												alignItems: 'center',
-												justifyContent: 'center',
+												cursor: 'pointer',
+												fontFamily: 'inherit',
+												transition: 'all 0.15s',
+											}}
+											onMouseEnter={e => {
+												e.currentTarget.style.borderColor = '#e63946'
+												e.currentTarget.style.color = '#e63946'
+											}}
+											onMouseLeave={e => {
+												e.currentTarget.style.borderColor = '#2a2a2a'
+												e.currentTarget.style.color = '#555'
 											}}
 										>
-											×
+											✕ Remove
 										</button>
 									)}
 								</div>
-							) : (
-								<div
-									onClick={() => !uploading && thumbRef.current?.click()}
-									style={{
-										width: 120,
-										height: 68,
-										borderRadius: 8,
-										border: '2px dashed #2a2a2a',
-										display: 'flex',
-										flexDirection: 'column',
-										alignItems: 'center',
-										justifyContent: 'center',
-										cursor: uploading ? 'not-allowed' : 'pointer',
-										flexShrink: 0,
-									}}
-								>
-									<svg
-										width='20'
-										height='20'
-										viewBox='0 0 24 24'
-										fill='none'
-										stroke='#444'
-										strokeWidth='1.5'
-										style={{ marginBottom: 4 }}
-									>
-										<rect x='3' y='3' width='18' height='18' rx='2' />
-										<circle cx='8.5' cy='8.5' r='1.5' />
-										<path d='M21 15l-5-5L5 21' />
-									</svg>
-									<span style={{ fontSize: 10, color: '#444' }}>
-										Add thumbnail
-									</span>
-								</div>
-							)}
-							<div>
-								<p style={{ fontSize: 13, color: '#555', margin: 0 }}>
-									A great thumbnail stands out and draws viewers&apos;
-									attention.
-								</p>
-								<button
-									type='button'
-									onClick={() => !uploading && thumbRef.current?.click()}
-									disabled={uploading}
-									style={{
-										marginTop: 8,
-										padding: '7px 14px',
-										borderRadius: 8,
-										border: '1px solid #2a2a2a',
-										background: 'transparent',
-										color: '#888',
-										fontSize: 12,
-										cursor: uploading ? 'not-allowed' : 'pointer',
-										fontFamily: 'inherit',
-									}}
-								>
-									Choose file
-								</button>
 							</div>
 						</div>
 						<input
@@ -751,7 +1001,7 @@ const labelStyle: React.CSSProperties = {
 	color: '#888',
 	textTransform: 'uppercase',
 	letterSpacing: '0.5px',
-	marginBottom: 8,
+	marginBottom: 0,
 }
 
 const inputStyle: React.CSSProperties = {

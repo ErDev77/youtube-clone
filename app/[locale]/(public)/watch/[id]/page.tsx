@@ -138,13 +138,12 @@ function Avatar({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   RELATED VIDEO CARD
+   RELATED NORMAL VIDEO CARD  (horizontal — for sidebar)
 ───────────────────────────────────────────────────────────────────────────── */
 
 function RelatedCard({ video }: { video: Related }) {
 	const [hovered, setHovered] = useState(false)
 	const name = video.uploader.username
-	const isShort = video.video_type === 'shorts'
 
 	return (
 		<Link
@@ -160,8 +159,8 @@ function RelatedCard({ video }: { video: Related }) {
 		>
 			<div
 				style={{
-					width: isShort ? 68 : 168,
-					height: isShort ? 120 : 94,
+					width: 168,
+					height: 94,
 					borderRadius: 8,
 					overflow: 'hidden',
 					background: '#1a1a1a',
@@ -194,23 +193,6 @@ function RelatedCard({ video }: { video: Related }) {
 						<svg width='24' height='24' viewBox='0 0 24 24' fill='#333'>
 							<path d='M8 5v14l11-7z' />
 						</svg>
-					</div>
-				)}
-				{isShort && (
-					<div
-						style={{
-							position: 'absolute',
-							bottom: 4,
-							left: 4,
-							background: '#e63946',
-							borderRadius: 4,
-							padding: '1px 5px',
-							fontSize: 9,
-							fontWeight: 800,
-							color: '#fff',
-						}}
-					>
-						SHORTS
 					</div>
 				)}
 				{hovered && (
@@ -275,6 +257,151 @@ function RelatedCard({ video }: { video: Related }) {
 					{fmt(video.views_count)} views · {timeAgo(video.created_at)}
 				</p>
 			</div>
+		</Link>
+	)
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SHORTS CARD  (vertical 9:16 — for sidebar grid)
+───────────────────────────────────────────────────────────────────────────── */
+
+function SidebarShortCard({ video }: { video: Related }) {
+	const [hovered, setHovered] = useState(false)
+
+	return (
+		<Link
+			href={`/en/watch/${video.id}`}
+			style={{ textDecoration: 'none', display: 'block' }}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+		>
+			{/* 9:16 thumbnail */}
+			<div
+				style={{
+					position: 'relative',
+					width: '100%',
+					paddingBottom: '177.78%',
+					borderRadius: 10,
+					overflow: 'hidden',
+					background: '#1a1a1a',
+				}}
+			>
+				{video.thumbnail_url ? (
+					<img
+						src={video.thumbnail_url}
+						alt={video.title}
+						style={{
+							position: 'absolute',
+							inset: 0,
+							width: '100%',
+							height: '100%',
+							objectFit: 'cover',
+							transform: hovered ? 'scale(1.04)' : 'scale(1)',
+							transition: 'transform 0.2s',
+						}}
+					/>
+				) : (
+					<div
+						style={{
+							position: 'absolute',
+							inset: 0,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}
+					>
+						<svg width='20' height='20' viewBox='0 0 24 24' fill='#333'>
+							<path d='M8 5v14l11-7z' />
+						</svg>
+					</div>
+				)}
+
+				{/* SHORTS badge */}
+				<div
+					style={{
+						position: 'absolute',
+						top: 6,
+						left: 6,
+						background: '#e63946',
+						borderRadius: 4,
+						padding: '2px 6px',
+						fontSize: 9,
+						fontWeight: 800,
+						color: '#fff',
+						letterSpacing: '0.3px',
+					}}
+				>
+					SHORTS
+				</div>
+
+				{/* Play overlay */}
+				{hovered && (
+					<div
+						style={{
+							position: 'absolute',
+							inset: 0,
+							background: 'rgba(0,0,0,0.35)',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}
+					>
+						<div
+							style={{
+								width: 34,
+								height: 34,
+								borderRadius: '50%',
+								background: 'rgba(230,57,70,0.9)',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+							}}
+						>
+							<svg width='13' height='13' viewBox='0 0 24 24' fill='white'>
+								<path d='M8 5v14l11-7z' />
+							</svg>
+						</div>
+					</div>
+				)}
+
+				{/* Views badge */}
+				<div
+					style={{
+						position: 'absolute',
+						bottom: 6,
+						left: 6,
+						background: 'rgba(0,0,0,0.72)',
+						color: '#fff',
+						fontSize: 10,
+						fontWeight: 600,
+						padding: '2px 6px',
+						borderRadius: 5,
+					}}
+				>
+					{fmt(video.views_count)}
+				</div>
+			</div>
+
+			{/* Title */}
+			<p
+				style={{
+					fontSize: 12,
+					fontWeight: 600,
+					color: hovered ? '#fff' : '#ccc',
+					margin: '6px 0 1px',
+					lineHeight: 1.35,
+					display: '-webkit-box',
+					WebkitLineClamp: 2,
+					WebkitBoxOrient: 'vertical',
+					overflow: 'hidden',
+					transition: 'color 0.12s',
+				}}
+			>
+				{video.title}
+			</p>
+			<p style={{ fontSize: 11, color: '#666', margin: 0 }}>
+				{video.uploader.username}
+			</p>
 		</Link>
 	)
 }
@@ -621,7 +748,7 @@ function CommentsSection({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SHORTS PLAYER
+   SHORTS PLAYER  (unchanged)
 ───────────────────────────────────────────────────────────────────────────── */
 
 function ShortsPlayer({ v, related }: { v: Video; related: Related[] }) {
@@ -1034,10 +1161,8 @@ function NormalPlayer({
 			window.location.href = '/en/login'
 			return
 		}
-
 		const wasLiked = liked
 		const wasDisliked = disliked
-
 		if (action === 'like') {
 			const newLiked = !liked
 			setLiked(newLiked)
@@ -1055,7 +1180,6 @@ function NormalPlayer({
 				setLikesCount(prev => prev - 1)
 			}
 		}
-
 		try {
 			const res = await fetch(`/api/videos/${v.id}/like`, {
 				method: 'POST',
@@ -1110,10 +1234,15 @@ function NormalPlayer({
 		setTimeout(() => setCopied(false), 2000)
 	}
 
-	// When in queue mode, sidebar shows QueueSidebar; otherwise Related videos
 	const showQueue = !!queueType
 
-	const sidebarVideos = related.filter(r => r.id !== v.id).slice(0, 22)
+	// Split related into normal videos and shorts
+	const relatedNormal = related
+		.filter(r => r.video_type !== 'shorts' && r.id !== v.id)
+		.slice(0, 15)
+	const relatedShorts = related
+		.filter(r => r.video_type === 'shorts' && r.id !== v.id)
+		.slice(0, 3)
 
 	return (
 		<>
@@ -1213,7 +1342,7 @@ function NormalPlayer({
 
 						{/* Action pills */}
 						<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-							{/* Like / Dislike grouped pill */}
+							{/* Like / Dislike */}
 							<div
 								style={{
 									display: 'flex',
@@ -1239,7 +1368,6 @@ function NormalPlayer({
 										borderRight: '1px solid #2a2a2a',
 										transition: 'all 0.15s',
 									}}
-									title='Like'
 								>
 									<ThumbsUp size={18} fill={liked ? 'currentColor' : 'none'} />
 									{fmt(likesCount)}
@@ -1260,7 +1388,6 @@ function NormalPlayer({
 										border: 'none',
 										transition: 'all 0.15s',
 									}}
-									title='Dislike'
 								>
 									<ThumbsDown
 										size={18}
@@ -1306,8 +1433,7 @@ function NormalPlayer({
 									e.currentTarget.style.color = '#ccc'
 								}}
 							>
-								<Clock size={18} />
-								Watch Later
+								<Clock size={18} /> Watch Later
 							</button>
 
 							<button
@@ -1342,8 +1468,7 @@ function NormalPlayer({
 									e.currentTarget.style.color = '#ccc'
 								}}
 							>
-								<ListVideo size={18} />
-								Add to Playlist
+								<ListVideo size={18} /> Add to Playlist
 							</button>
 
 							<button
@@ -1364,8 +1489,7 @@ function NormalPlayer({
 									transition: 'all 0.15s',
 								}}
 							>
-								<Share2 size={18} />
-								{copied ? 'Copied!' : 'Share'}
+								<Share2 size={18} /> {copied ? 'Copied!' : 'Share'}
 							</button>
 						</div>
 					</div>
@@ -1468,7 +1592,7 @@ function NormalPlayer({
 					<CommentsSection videoId={v.id} currentUser={currentUser} />
 				</div>
 
-				{/* ── RIGHT: Queue or Related sidebar ── */}
+				{/* ── RIGHT SIDEBAR ── */}
 				<aside style={{ width: 400, flexShrink: 0, paddingTop: 2 }}>
 					{showQueue ? (
 						<QueueSidebar
@@ -1478,31 +1602,104 @@ function NormalPlayer({
 							startIndex={queueIndex}
 						/>
 					) : (
-						<>
-							<p
-								style={{
-									fontSize: 12,
-									fontWeight: 700,
-									color: '#555',
-									letterSpacing: '1px',
-									textTransform: 'uppercase',
-									margin: '0 0 14px',
-								}}
-							>
-								Up Next
-							</p>
-							<div
-								style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-							>
-								{sidebarVideos.length === 0 ? (
+						<div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+							{/* ── Shorts section (3-column grid) ── */}
+							{relatedShorts.length > 0 && (
+								<div style={{ marginBottom: 24 }}>
+									<div
+										style={{
+											display: 'flex',
+											alignItems: 'center',
+											justifyContent: 'space-between',
+											marginBottom: 12,
+										}}
+									>
+										<div
+											style={{ display: 'flex', alignItems: 'center', gap: 7 }}
+										>
+											<div
+												style={{
+													width: 3,
+													height: 14,
+													background: '#e63946',
+													borderRadius: 2,
+												}}
+											/>
+											<span
+												style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}
+											>
+												Shorts
+											</span>
+										</div>
+										<Link
+											href='/en/shorts'
+											style={{
+												fontSize: 12,
+												color: '#e63946',
+												textDecoration: 'none',
+												fontWeight: 600,
+											}}
+										>
+											View all →
+										</Link>
+									</div>
+									{/* 3-column shorts grid */}
+									<div
+										style={{
+											display: 'grid',
+											gridTemplateColumns: 'repeat(3, 1fr)',
+											gap: 8,
+										}}
+									>
+										{relatedShorts.map(r => (
+											<SidebarShortCard key={r.id} video={r} />
+										))}
+									</div>
+									{/* Divider */}
+									<div
+										style={{
+											height: 1,
+											background:
+												'linear-gradient(90deg, transparent, #1e1e1e 20%, #1e1e1e 80%, transparent)',
+											margin: '20px 0 0',
+										}}
+									/>
+								</div>
+							)}
+
+							{/* ── Normal related videos ── */}
+							<div>
+								<p
+									style={{
+										fontSize: 12,
+										fontWeight: 700,
+										color: '#555',
+										letterSpacing: '1px',
+										textTransform: 'uppercase',
+										margin: '0 0 14px',
+									}}
+								>
+									Up Next
+								</p>
+								{relatedNormal.length === 0 ? (
 									<p style={{ fontSize: 13, color: '#444' }}>
 										No related videos
 									</p>
 								) : (
-									sidebarVideos.map(r => <RelatedCard key={r.id} video={r} />)
+									<div
+										style={{
+											display: 'flex',
+											flexDirection: 'column',
+											gap: 10,
+										}}
+									>
+										{relatedNormal.map(r => (
+											<RelatedCard key={r.id} video={r} />
+										))}
+									</div>
 								)}
 							</div>
-						</>
+						</div>
 					)}
 				</aside>
 			</div>
@@ -1527,12 +1724,9 @@ export default function WatchPage() {
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 
-	// Queue params from URL
 	const queueParam = searchParams.get('queue') as QueueType | null
 	const queueIndex = parseInt(searchParams.get('index') || '0', 10)
 	const playlistId = searchParams.get('playlist_id')
-
-	// Validate queue type
 	const validQueueTypes: QueueType[] = ['liked', 'watchlater', 'playlist']
 	const queueType =
 		queueParam && validQueueTypes.includes(queueParam) ? queueParam : null
@@ -1559,11 +1753,11 @@ export default function WatchPage() {
 	return (
 		<UserLayout>
 			<style>{`
-        @keyframes spin   { to { transform: rotate(360deg) } }
-        @keyframes fadeUp { from { opacity:0;transform:translateY(8px) } to { opacity:1;transform:translateY(0) } }
-        @keyframes fadeOut { 0%,70% { opacity:1 } 100% { opacity:0 } }
-        @keyframes pulse  { 0%,100% { opacity:1 } 50% { opacity:.4 } }
-      `}</style>
+				@keyframes spin   { to { transform: rotate(360deg) } }
+				@keyframes fadeUp { from { opacity:0;transform:translateY(8px) } to { opacity:1;transform:translateY(0) } }
+				@keyframes fadeOut { 0%,70% { opacity:1 } 100% { opacity:0 } }
+				@keyframes pulse  { 0%,100% { opacity:1 } 50% { opacity:.4 } }
+			`}</style>
 
 			{loading ? (
 				<div

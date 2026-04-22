@@ -77,15 +77,6 @@ function KebabMenu({
 			},
 		},
 		{
-			label: 'Save to Playlist',
-			icon: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
-			onClick: (e: React.MouseEvent) => {
-				e.preventDefault()
-				e.stopPropagation()
-				onClose()
-			},
-		},
-		{
 			label: 'Copy link',
 			icon: 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z',
 			onClick: (e: React.MouseEvent) => {
@@ -347,175 +338,149 @@ function VideoCard({ video }: { video: Video }) {
 	)
 }
 
-// ── REPLACE the ShortsCard function in app/[locale]/page.tsx ──
-// Find the existing ShortsCard function and replace it entirely with this one.
-// The only change is: the Link href goes to /en/shorts instead of /en/watch/${video.id}
-
+// ── Shorts card ───────────────────────────────────────────────────────────────
+// Uses 3:4 ratio (75% padding) instead of full 9:16 so cards aren't too tall
 function ShortsCard({ video }: { video: Video }) {
 	const [hovered, setHovered] = useState(false)
-	const [menu, setMenu] = useState(false)
 
 	return (
-		<div
-			style={{ flexShrink: 0, width: 200 }}
+		<Link
+			href='/en/shorts'
+			style={{ textDecoration: 'none', display: 'block', minWidth: 0 }}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 		>
-			{/* Clicking the thumbnail/card goes to /shorts (the feed) */}
-			<Link
-				href={`/en/shorts`}
-				style={{ textDecoration: 'none', display: 'block' }}
+			{/* 3:4 aspect ratio keeps cards compact while still feeling vertical */}
+			<div
+				style={{
+					position: 'relative',
+					width: '100%',
+					paddingBottom: '133%',
+					borderRadius: 10,
+					overflow: 'hidden',
+					background: '#1a1a1a',
+				}}
 			>
-				<div
-					style={{
-						position: 'relative',
-						width: 200,
-						height: 356,
-						borderRadius: 12,
-						overflow: 'hidden',
-						background: '#1a1a1a',
-					}}
-				>
-					{video.thumbnail_url ? (
-						<img
-							src={video.thumbnail_url}
-							alt={video.title}
-							style={{
-								width: '100%',
-								height: '100%',
-								objectFit: 'cover',
-								transform: hovered ? 'scale(1.04)' : 'scale(1)',
-								transition: 'transform .2s',
-							}}
-						/>
-					) : (
-						<div
-							style={{
-								width: '100%',
-								height: '100%',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-							}}
-						>
-							<svg width='28' height='28' viewBox='0 0 24 24' fill='#333'>
-								<path d='M8 5v14l11-7z' />
-							</svg>
-						</div>
-					)}
-					{hovered && (
-						<div
-							style={{
-								position: 'absolute',
-								inset: 0,
-								background: 'rgba(0,0,0,.3)',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-							}}
-						>
-							<div
-								style={{
-									width: 40,
-									height: 40,
-									borderRadius: '50%',
-									background: 'rgba(230,57,70,.9)',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-								}}
-							>
-								<svg width='16' height='16' viewBox='0 0 24 24' fill='#fff'>
-									<path d='M8 5v14l11-7z' />
-								</svg>
-							</div>
-						</div>
-					)}
+				{video.thumbnail_url ? (
+					<img
+						src={video.thumbnail_url}
+						alt={video.title}
+						style={{
+							position: 'absolute',
+							inset: 0,
+							width: '100%',
+							height: '100%',
+							objectFit: 'cover',
+							transform: hovered ? 'scale(1.04)' : 'scale(1)',
+							transition: 'transform .2s',
+						}}
+					/>
+				) : (
 					<div
 						style={{
 							position: 'absolute',
-							bottom: 8,
-							left: 8,
-							background: 'rgba(0,0,0,.75)',
-							color: '#fff',
-							fontSize: 11,
-							fontWeight: 600,
-							padding: '2px 7px',
-							borderRadius: 6,
+							inset: 0,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
 						}}
 					>
-						{fmtViews(video.views_count)} views
+						<svg width='24' height='24' viewBox='0 0 24 24' fill='#333'>
+							<path d='M8 5v14l11-7z' />
+						</svg>
 					</div>
-					<div style={{ position: 'absolute', top: 6, right: 6 }}>
-						<button
-							onClick={e => {
-								e.preventDefault()
-								e.stopPropagation()
-								setMenu(v => !v)
-							}}
+				)}
+
+				{/* SHORTS pill */}
+				<div
+					style={{
+						position: 'absolute',
+						top: 7,
+						left: 7,
+						background: 'rgba(230,57,70,0.92)',
+						color: '#fff',
+						fontSize: 9,
+						fontWeight: 800,
+						padding: '2px 6px',
+						borderRadius: 4,
+						letterSpacing: '0.4px',
+					}}
+				>
+					SHORTS
+				</div>
+
+				{/* Play overlay */}
+				{hovered && (
+					<div
+						style={{
+							position: 'absolute',
+							inset: 0,
+							background: 'rgba(0,0,0,.3)',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}
+					>
+						<div
 							style={{
-								width: 28,
-								height: 28,
+								width: 36,
+								height: 36,
 								borderRadius: '50%',
-								background: hovered || menu ? 'rgba(0,0,0,.6)' : 'transparent',
-								border: 'none',
-								cursor: 'pointer',
-								color: '#fff',
+								background: 'rgba(230,57,70,.9)',
 								display: 'flex',
 								alignItems: 'center',
 								justifyContent: 'center',
-								opacity: hovered || menu ? 1 : 0,
-								transition: 'opacity .15s',
 							}}
 						>
-							<svg
-								width='14'
-								height='14'
-								viewBox='0 0 24 24'
-								fill='currentColor'
-							>
-								<circle cx='12' cy='5' r='2' />
-								<circle cx='12' cy='12' r='2' />
-								<circle cx='12' cy='19' r='2' />
+							<svg width='14' height='14' viewBox='0 0 24 24' fill='#fff'>
+								<path d='M8 5v14l11-7z' />
 							</svg>
-						</button>
-						{menu && (
-							<KebabMenu videoId={video.id} onClose={() => setMenu(false)} />
-						)}
+						</div>
 					</div>
-				</div>
-			</Link>
-			{/* Title links to the individual watch page so user can see full detail */}
-			<Link href={`/en/watch/${video.id}`} style={{ textDecoration: 'none' }}>
-				<p
+				)}
+
+				{/* Views badge */}
+				<div
 					style={{
-						fontSize: 13,
-						fontWeight: 600,
+						position: 'absolute',
+						bottom: 6,
+						left: 6,
+						background: 'rgba(0,0,0,.72)',
 						color: '#fff',
-						margin: '8px 0 2px',
-						lineHeight: 1.3,
-						display: '-webkit-box',
-						WebkitLineClamp: 2,
-						WebkitBoxOrient: 'vertical',
-						overflow: 'hidden',
+						fontSize: 10,
+						fontWeight: 600,
+						padding: '2px 6px',
+						borderRadius: 5,
 					}}
 				>
-					{video.title}
-				</p>
-			</Link>
-			<Link
-				href={`/en/channel/${video.uploader.id}`}
-				style={{ textDecoration: 'none' }}
+					{fmtViews(video.views_count)}
+				</div>
+			</div>
+
+			<p
+				style={{
+					fontSize: 12,
+					fontWeight: 600,
+					color: hovered ? '#fff' : '#ddd',
+					margin: '6px 0 1px',
+					lineHeight: 1.35,
+					display: '-webkit-box',
+					WebkitLineClamp: 2,
+					WebkitBoxOrient: 'vertical',
+					overflow: 'hidden',
+					transition: 'color .15s',
+				}}
 			>
-				<p style={{ fontSize: 12, color: '#666', margin: 0 }}>
-					{video.uploader.username}
-				</p>
-			</Link>
-		</div>
+				{video.title}
+			</p>
+			<p style={{ fontSize: 11, color: '#666', margin: 0 }}>
+				{video.uploader.username}
+			</p>
+		</Link>
 	)
 }
 
-// ── Shorts shelf ──────────────────────────────────────────────────────────────
+// ── Shorts shelf — always exactly 5 equal columns ────────────────────────────
 function ShortsShelf({ videos }: { videos: Video[] }) {
 	return (
 		<div style={{ marginBottom: 36 }}>
@@ -523,36 +488,47 @@ function ShortsShelf({ videos }: { videos: Video[] }) {
 				style={{
 					display: 'flex',
 					alignItems: 'center',
-					gap: 8,
-					marginBottom: 14,
+					justifyContent: 'space-between',
+					marginBottom: 12,
 				}}
 			>
-				<div
+				<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+					<div
+						style={{
+							width: 3,
+							height: 16,
+							background: '#e63946',
+							borderRadius: 2,
+						}}
+					/>
+					<span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
+						Shorts
+					</span>
+				</div>
+				<Link
+					href='/en/shorts'
 					style={{
-						width: 3,
-						height: 18,
-						background: '#e63946',
-						borderRadius: 2,
-					}}
-				/>
-				<span
-					style={{
-						fontSize: 16,
-						fontWeight: 700,
-						color: '#fff',
-						letterSpacing: '-.2px',
+						fontSize: 12,
+						color: '#e63946',
+						textDecoration: 'none',
+						fontWeight: 600,
+						display: 'flex',
+						alignItems: 'center',
+						gap: 3,
 					}}
 				>
-					Shorts
-				</span>
+					View all
+					<svg width='13' height='13' viewBox='0 0 24 24' fill='currentColor'>
+						<path d='M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z' />
+					</svg>
+				</Link>
 			</div>
+
 			<div
 				style={{
-					display: 'flex',
-					gap: 12,
-					overflowX: 'auto',
-					paddingBottom: 6,
-					scrollbarWidth: 'none',
+					display: 'grid',
+					gridTemplateColumns: 'repeat(6, 1fr)',
+					gap: 10,
 				}}
 			>
 				{videos.map(v => (
@@ -601,6 +577,65 @@ const CATS = [
 	{ v: 'sport', l: '⚽ Sport' },
 	{ v: 'videogames', l: '🕹️ Video Games' },
 ]
+
+/**
+ * Converts a flat video list into alternating normal/shorts blocks.
+ *
+ * Strategy:
+ *  - Walk through every video in order.
+ *  - Normal videos go into a running buffer.
+ *  - Shorts go into a SEPARATE pending buffer — they are NEVER emitted
+ *    one-by-one; they only emit as a group.
+ *  - Once we have accumulated >= NORMAL_BATCH normal videos AND there are
+ *    pending shorts, flush normal → flush shorts (up to 5).
+ *  - At the end, flush whatever remains: normal first, then pending shorts.
+ *
+ * This guarantees all shorts between two normal batches always appear
+ * together in a single shelf, never split across multiple rows.
+ */
+function buildBlocks(items: Video[]) {
+	const NORMAL_BATCH = 12
+
+	type Block =
+		| { type: 'normal'; items: Video[] }
+		| { type: 'shorts'; items: Video[] }
+
+	const blocks: Block[] = []
+	let normBuf: Video[] = []
+	let shortBuf: Video[] = []
+
+	const flushNormal = () => {
+		if (!normBuf.length) return
+		blocks.push({ type: 'normal', items: normBuf })
+		normBuf = []
+	}
+
+	const flushShorts = () => {
+		if (!shortBuf.length) return
+		blocks.push({ type: 'shorts', items: shortBuf.slice(0, 6) })
+		shortBuf = []
+	}
+
+	for (const v of items) {
+		if (v.video_type === 'shorts') {
+			// Just accumulate — never emit immediately
+			shortBuf.push(v)
+		} else {
+			normBuf.push(v)
+			// Only flush when we've filled a full batch AND have shorts waiting
+			if (normBuf.length >= NORMAL_BATCH && shortBuf.length > 0) {
+				flushNormal()
+				flushShorts()
+			}
+		}
+	}
+
+	// Drain remaining items
+	flushNormal()
+	flushShorts()
+
+	return blocks
+}
 
 export default function Home() {
 	const [feed, setFeed] = useState<Feed | null>(null)
@@ -659,79 +694,30 @@ export default function Home() {
 		return () => observer.current?.disconnect()
 	}, [feed, loadingMore, cat, load])
 
-	const blocks = (() => {
-		if (!feed) return []
-		type B =
-			| { type: 'normal'; items: Video[] }
-			| { type: 'shorts'; items: Video[] }
-		const out: B[] = []
-		let norm: Video[] = [],
-			short: Video[] = []
-		for (const v of feed.items) {
-			if (v.video_type === 'shorts') {
-				short.push(v)
-			} else {
-				norm.push(v)
-				if (norm.length === 8 && short.length > 0) {
-					out.push({ type: 'normal', items: [...norm] })
-					out.push({ type: 'shorts', items: [...short] })
-					norm = []
-					short = []
-				}
-			}
-		}
-		if (norm.length) out.push({ type: 'normal', items: norm })
-		if (short.length) out.push({ type: 'shorts', items: short })
-		return out
-	})()
+	const blocks = feed ? buildBlocks(feed.items) : []
 
 	return (
 		<UserLayout>
 			<style>{`
-				@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
-				@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-				@keyframes spin{to{transform:rotate(360deg)}}
-				@keyframes pop{from{opacity:0;transform:scale(.95) translateY(-4px)}to{opacity:1;transform:scale(1) translateY(0)}}
+				@keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:.45} }
+				@keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+				@keyframes spin   { to{transform:rotate(360deg)} }
+				@keyframes pop    { from{opacity:0;transform:scale(.95) translateY(-4px)} to{opacity:1;transform:scale(1) translateY(0)} }
 
-				/*
-				 * CSS container queries on the grid wrapper.
-				 * The wrapper's width = main content width, which already accounts
-				 * for whether the sidebar (220px) is open or closed.
-				 *
-				 * Sidebar open   → main ≈ viewport - 220px - 48px padding
-				 * Sidebar closed → main ≈ viewport - 48px padding
-				 *
-				 * At a 1440px viewport:
-				 *   open  → ~1172px → below 1270px breakpoint → 3 columns ✓
-				 *   closed → ~1392px → above 1270px breakpoint → 4 columns ✓
-				 */
 				.video-grid { container-type: inline-size; }
-
 				.video-grid-inner {
 					display: grid;
 					grid-template-columns: repeat(4, 1fr);
 					gap: 24px 16px;
 					margin-bottom: 36px;
 				}
-				@container (max-width: 1270px) {
-					.video-grid-inner { grid-template-columns: repeat(3, 1fr); }
-				}
-				@container (max-width: 860px) {
-					.video-grid-inner { grid-template-columns: repeat(2, 1fr); }
-				}
+				@container (max-width: 1270px) { .video-grid-inner { grid-template-columns: repeat(3, 1fr); } }
+				@container (max-width: 860px)  { .video-grid-inner { grid-template-columns: repeat(2, 1fr); } }
 
 				.skeleton-grid { container-type: inline-size; }
-				.skeleton-grid-inner {
-					display: grid;
-					grid-template-columns: repeat(4, 1fr);
-					gap: 20px 16px;
-				}
-				@container (max-width: 1270px) {
-					.skeleton-grid-inner { grid-template-columns: repeat(3, 1fr); }
-				}
-				@container (max-width: 860px) {
-					.skeleton-grid-inner { grid-template-columns: repeat(2, 1fr); }
-				}
+				.skeleton-grid-inner { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px 16px; }
+				@container (max-width: 1270px) { .skeleton-grid-inner { grid-template-columns: repeat(3, 1fr); } }
+				@container (max-width: 860px)  { .skeleton-grid-inner { grid-template-columns: repeat(2, 1fr); } }
 			`}</style>
 
 			{/* Category chips */}
