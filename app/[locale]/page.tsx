@@ -354,7 +354,8 @@ function ShortsCard({ video }: { video: Video }) {
 			<div
 				style={{
 					position: 'relative',
-					width: '100%',
+					width: '85%',
+					height: '75%',
 					paddingBottom: '133%',
 					borderRadius: 10,
 					overflow: 'hidden',
@@ -527,8 +528,8 @@ function ShortsShelf({ videos }: { videos: Video[] }) {
 			<div
 				style={{
 					display: 'grid',
-					gridTemplateColumns: 'repeat(6, 1fr)',
-					gap: 10,
+					gridTemplateColumns: 'repeat(5, 1fr)',
+					gap: 6,
 				}}
 			>
 				{videos.map(v => (
