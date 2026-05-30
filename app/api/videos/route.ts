@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 		values.push(limit + 1)
 
 		const { rows } = await pool.query(
-			`SELECT v.id, v.title, v.thumbnail_url, v.video_url, v.category,
+			`SELECT v.id, v.title, v.description, v.thumbnail_url, v.video_url, v.category,
               v.video_type, v.views_count, v.likes_count, v.created_at,
               u.id AS uploader_id, u.username, u.display_name, u.avatar_url
        FROM videos v
@@ -62,6 +62,7 @@ export async function GET(req: Request) {
 				items: items.map(r => ({
 					id: r.id,
 					title: r.title,
+					description: r.description,
 					thumbnail_url: r.thumbnail_url,
 					video_url: r.video_url,
 					category: r.category,
@@ -110,7 +111,7 @@ export async function POST(req: Request) {
 		const { rows } = await pool.query(
 			`INSERT INTO videos (id, user_id, title, description, thumbnail_url, video_url, category, video_type)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       RETURNING id, title, thumbnail_url, video_url, category, video_type, views_count, likes_count, created_at`,
+       RETURNING id, title, description, thumbnail_url, video_url, category, video_type, views_count, likes_count, created_at`,
 			[
 				id,
 				session.userId,
