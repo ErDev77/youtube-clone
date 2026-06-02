@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import UserLayout from '@/app/_components/layout/UserLayout'
 import { useAuthContext } from '@/context/AuthContext'
+import PlaylistPicker from '@/app/_components/video/PlaylistPicker'
 
 /* ─── Types ─── */
 type User = {
@@ -21,11 +22,14 @@ type User = {
 type Video = {
 	id: string
 	title: string
-	thumbnail_url?: string
+	thumbnail_url?: string | null
 	video_url: string
 	views_count: number
+	likes_count: number
 	created_at: string
 	duration?: string
+	video_type: 'normal' | 'shorts'
+	uploader?: { id: string; username: string; avatar_url?: string }
 }
 
 type Playlist = {
@@ -38,7 +42,7 @@ type Playlist = {
 	updated_at: string
 }
 
-type Tab = 'videos' | 'playlists' | 'about'
+type Tab = 'videos' | 'shorts' | 'playlists' | 'about'
 
 /* ─── Helpers ─── */
 function fmt(n: number): string {
@@ -47,14 +51,20 @@ function fmt(n: number): string {
 	return String(n)
 }
 
+function fmtViews(n: number): string {
+	return fmt(n)
+}
+
 function timeAgo(iso: string): string {
-	const diff = Date.now() - new Date(iso).getTime()
-	const d = Math.floor(diff / 86400000)
-	if (d < 1) return 'today'
-	if (d < 7) return `${d}d ago`
-	if (d < 30) return `${Math.floor(d / 7)}w ago`
-	if (d < 365) return `${Math.floor(d / 30)}mo ago`
-	return `${Math.floor(d / 365)}y ago`
+	const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+	if (s < 60) return 'just now'
+	if (s < 3600) return Math.floor(s / 60) + 'm ago'
+	if (s < 86400) return Math.floor(s / 3600) + 'h ago'
+	const d = Math.floor(s / 86400)
+	if (d < 7) return d + 'd ago'
+	if (d < 30) return Math.floor(d / 7) + 'w ago'
+	if (d < 365) return Math.floor(d / 30) + 'mo ago'
+	return Math.floor(d / 365) + 'y ago'
 }
 
 function getInitials(name: string): string {
@@ -103,21 +113,347 @@ async function uploadToImageKit(file: File, folder: string): Promise<string> {
 	return (await uploadRes.json()).url
 }
 
-/* ─── VideoCard ─── */
-function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
-	const [hovered, setHovered] = useState(false)
+/* ─── KebabMenu ─── */
+function KebabMenu({
+	videoId,
+	onClose,
+	onAddToPlaylist,
+}: {
+	videoId: string
+	onClose: () => void
+	onAddToPlaylist: () => void
+}) {
+	const ref = useRef<HTMLDivElement>(null)
+
+	useEffect(() => {
+		const fn = (e: MouseEvent) => {
+			if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+		}
+		document.addEventListener('mousedown', fn)
+		return () => document.removeEventListener('mousedown', fn)
+	}, [onClose])
+
+	const actions = [
+		{
+			label: 'Save to Watch Later',
+			icon: 'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z',
+			onClick: async (e: React.MouseEvent) => {
+				e.preventDefault()
+				e.stopPropagation()
+				await fetch('/api/me/watch-later', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ video_id: videoId }),
+				}).catch(() => {})
+				onClose()
+			},
+		},
+		{
+			label: 'Add to Playlist',
+			icon: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
+			onClick: (e: React.MouseEvent) => {
+				e.preventDefault()
+				e.stopPropagation()
+				onAddToPlaylist()
+				onClose()
+			},
+		},
+		{
+			label: 'Copy link',
+			icon: 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z',
+			onClick: (e: React.MouseEvent) => {
+				e.preventDefault()
+				e.stopPropagation()
+				navigator.clipboard
+					?.writeText(`${window.location.origin}/en/watch/${videoId}`)
+					.catch(() => {})
+				onClose()
+			},
+		},
+	]
+
 	return (
+		<div
+			ref={ref}
+			style={{
+				position: 'absolute',
+				top: '100%',
+				right: 0,
+				zIndex: 300,
+				background: '#1c1c1c',
+				border: '1px solid #2a2a2a',
+				borderRadius: 10,
+				minWidth: 186,
+				overflow: 'hidden',
+				boxShadow: '0 8px 28px rgba(0,0,0,0.7)',
+				animation: 'pop .12s ease',
+			}}
+		>
+			{actions.map(a => (
+				<button
+					key={a.label}
+					onClick={a.onClick}
+					style={{
+						display: 'flex',
+						alignItems: 'center',
+						gap: 10,
+						width: '100%',
+						padding: '10px 14px',
+						background: 'none',
+						border: 'none',
+						cursor: 'pointer',
+						color: '#ccc',
+						fontSize: 13,
+						fontFamily: 'inherit',
+						textAlign: 'left',
+						transition: 'background .1s',
+					}}
+					onMouseEnter={e => (e.currentTarget.style.background = '#252525')}
+					onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+				>
+					<svg width='16' height='16' viewBox='0 0 24 24' fill='#555'>
+						<path d={a.icon} />
+					</svg>
+					{a.label}
+				</button>
+			))}
+		</div>
+	)
+}
+
+/* ─── VideoCard ─── */
+function VideoCard({ video, channelUser }: { video: Video; channelUser: User }) {
+	const [hovered, setHovered] = useState(false)
+	const [menu, setMenu] = useState(false)
+	const [playlistOpen, setPlaylistOpen] = useState(false)
+	const uploader = video.uploader ?? { id: channelUser.id, username: channelUser.display_name?.trim() || channelUser.username, avatar_url: channelUser.avatar_url }
+	const color = colorFromId(uploader.id)
+	const initials = uploader.username.slice(0, 2).toUpperCase()
+
+	return (
+		<>
 		<div
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
-			onClick={onPlay}
-			style={{ cursor: 'pointer' }}
+			style={{ position: 'relative' }}
+		>
+			<Link
+				href={`/en/watch/${video.id}`}
+				style={{ textDecoration: 'none', display: 'block' }}
+			>
+				<div
+					style={{
+						position: 'relative',
+						paddingBottom: '56.25%',
+						borderRadius: 10,
+						overflow: 'hidden',
+						background: '#1a1a1a',
+					}}
+				>
+					{video.thumbnail_url ? (
+						<img
+							src={video.thumbnail_url}
+							alt={video.title}
+							style={{
+								position: 'absolute',
+								inset: 0,
+								width: '100%',
+								height: '100%',
+								objectFit: 'cover',
+								transform: hovered ? 'scale(1.04)' : 'scale(1)',
+								transition: 'transform .2s',
+							}}
+						/>
+					) : (
+						<div
+							style={{
+								position: 'absolute',
+								inset: 0,
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+							}}
+						>
+							<svg width='36' height='36' viewBox='0 0 24 24' fill='#333'>
+								<path d='M8 5v14l11-7z' />
+							</svg>
+						</div>
+					)}
+					{hovered && !menu && (
+						<div
+							style={{
+								position: 'absolute',
+								inset: 0,
+								background: 'rgba(0,0,0,.28)',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+							}}
+						>
+							<div
+								style={{
+									width: 44,
+									height: 44,
+									borderRadius: '50%',
+									background: 'rgba(230,57,70,.9)',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+								}}
+							>
+								<svg width='18' height='18' viewBox='0 0 24 24' fill='#fff'>
+									<path d='M8 5v14l11-7z' />
+								</svg>
+							</div>
+						</div>
+					)}
+				</div>
+			</Link>
+
+			{/* Info row */}
+			<div
+				style={{
+					display: 'flex',
+					gap: 10,
+					marginTop: 10,
+					alignItems: 'flex-start',
+				}}
+			>
+				<Link
+					href={`/en/channel/${uploader.id}`}
+					style={{ flexShrink: 0, textDecoration: 'none' }}
+				>
+					{uploader.avatar_url ? (
+						<img
+							src={uploader.avatar_url}
+							style={{
+								width: 36,
+								height: 36,
+								borderRadius: '50%',
+								objectFit: 'cover',
+							}}
+							alt=''
+						/>
+					) : (
+						<div
+							style={{
+								width: 36,
+								height: 36,
+								borderRadius: '50%',
+								background: color,
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								fontSize: 12,
+								fontWeight: 700,
+								color: '#fff',
+							}}
+						>
+							{initials}
+						</div>
+					)}
+				</Link>
+
+				<div style={{ flex: 1, minWidth: 0 }}>
+					<Link
+						href={`/en/watch/${video.id}`}
+						style={{ textDecoration: 'none' }}
+					>
+						<p
+							style={{
+								fontSize: 14,
+								fontWeight: 600,
+								color: '#fff',
+								lineHeight: 1.4,
+								margin: '0 0 2px',
+								display: '-webkit-box',
+								WebkitLineClamp: 2,
+								WebkitBoxOrient: 'vertical',
+								overflow: 'hidden',
+							}}
+						>
+							{video.title}
+						</p>
+					</Link>
+					<Link
+						href={`/en/channel/${uploader.id}`}
+						style={{ textDecoration: 'none' }}
+					>
+						<p style={{ fontSize: 13, color: '#999', margin: '0 0 1px' }}>
+							{uploader.username}
+						</p>
+					</Link>
+					<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+						{fmtViews(video.views_count)} views · {timeAgo(video.created_at)}
+					</p>
+				</div>
+
+				{/* Kebab */}
+				<div style={{ position: 'relative', flexShrink: 0 }}>
+					<button
+						onClick={e => {
+							e.preventDefault()
+							e.stopPropagation()
+							setMenu(v => !v)
+						}}
+						style={{
+							width: 32,
+							height: 32,
+							borderRadius: '50%',
+							background: 'none',
+							border: 'none',
+							cursor: 'pointer',
+							color: '#777',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+							opacity: hovered || menu ? 1 : 0,
+							transition: 'opacity .15s',
+						}}
+						onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
+						onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+					>
+						<svg
+							width='16'
+							height='16'
+							viewBox='0 0 24 24'
+							fill='currentColor'
+						>
+							<circle cx='12' cy='5' r='2' />
+							<circle cx='12' cy='12' r='2' />
+							<circle cx='12' cy='19' r='2' />
+						</svg>
+					</button>
+					{menu && (
+						<KebabMenu videoId={video.id} onClose={() => setMenu(false)} onAddToPlaylist={() => setPlaylistOpen(true)} />
+					)}
+				</div>
+			</div>
+		</div>
+
+		{playlistOpen && (
+		<PlaylistPicker videoId={video.id} onClose={() => setPlaylistOpen(false)} />
+		)}	
+		</>
+	)
+}
+
+/* ─── ShortsCard ─── */
+function ShortsCard({ video }: { video: Video }) {
+	const [hovered, setHovered] = useState(false)
+
+	return (
+		<Link
+			href={`/en/watch/${video.id}`}
+			style={{ textDecoration: 'none', display: 'block', minWidth: 0 }}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
 		>
 			<div
 				style={{
 					position: 'relative',
 					width: '100%',
-					paddingBottom: '56.25%',
+					aspectRatio: '3 / 5',
 					borderRadius: 10,
 					overflow: 'hidden',
 					background: '#1a1a1a',
@@ -133,8 +469,8 @@ function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
 							width: '100%',
 							height: '100%',
 							objectFit: 'cover',
-							transform: hovered ? 'scale(1.05)' : 'scale(1)',
-							transition: 'transform 0.2s',
+							transform: hovered ? 'scale(1.04)' : 'scale(1)',
+							transition: 'transform .2s',
 						}}
 					/>
 				) : (
@@ -145,20 +481,20 @@ function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
 							display: 'flex',
 							alignItems: 'center',
 							justifyContent: 'center',
-							background: 'linear-gradient(135deg,#1a1a1a,#2a2a2a)',
 						}}
 					>
-						<svg width='36' height='36' viewBox='0 0 24 24' fill='#333'>
+						<svg width='24' height='24' viewBox='0 0 24 24' fill='#333'>
 							<path d='M8 5v14l11-7z' />
 						</svg>
 					</div>
 				)}
+
 				{hovered && (
 					<div
 						style={{
 							position: 'absolute',
 							inset: 0,
-							background: 'rgba(0,0,0,0.4)',
+							background: 'rgba(0,0,0,.3)',
 							display: 'flex',
 							alignItems: 'center',
 							justifyContent: 'center',
@@ -166,60 +502,59 @@ function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
 					>
 						<div
 							style={{
-								width: 48,
-								height: 48,
+								width: 36,
+								height: 36,
 								borderRadius: '50%',
-								background: 'rgba(230,57,70,0.9)',
+								background: 'rgba(230,57,70,.9)',
 								display: 'flex',
 								alignItems: 'center',
 								justifyContent: 'center',
 							}}
 						>
-							<svg width='20' height='20' viewBox='0 0 24 24' fill='white'>
+							<svg width='14' height='14' viewBox='0 0 24 24' fill='#fff'>
 								<path d='M8 5v14l11-7z' />
 							</svg>
 						</div>
 					</div>
 				)}
-				{video.duration && (
-					<span
-						style={{
-							position: 'absolute',
-							bottom: 6,
-							right: 6,
-							background: 'rgba(0,0,0,0.85)',
-							color: '#fff',
-							fontSize: 11,
-							fontWeight: 700,
-							padding: '2px 6px',
-							borderRadius: 4,
-						}}
-					>
-						{video.duration}
-					</span>
-				)}
-			</div>
-			<div style={{ marginTop: 10 }}>
-				<p
+
+				<div
 					style={{
-						fontSize: 14,
-						fontWeight: 600,
+						position: 'absolute',
+						bottom: 6,
+						left: 6,
+						background: 'rgba(0,0,0,.72)',
 						color: '#fff',
-						lineHeight: 1.4,
-						display: '-webkit-box',
-						WebkitLineClamp: 2,
-						WebkitBoxOrient: 'vertical',
-						overflow: 'hidden',
-						marginBottom: 4,
+						fontSize: 10,
+						fontWeight: 600,
+						padding: '2px 6px',
+						borderRadius: 5,
 					}}
 				>
-					{video.title}
-				</p>
-				<p style={{ fontSize: 12, color: '#888' }}>
-					{fmt(video.views_count)} views · {timeAgo(video.created_at)}
-				</p>
+					{fmtViews(video.views_count)} views
+				</div>
 			</div>
-		</div>
+
+			<p
+				style={{
+					fontSize: 12,
+					fontWeight: 600,
+					color: hovered ? '#fff' : '#ddd',
+					margin: '6px 0 1px',
+					lineHeight: 1.35,
+					display: '-webkit-box',
+					WebkitLineClamp: 2,
+					WebkitBoxOrient: 'vertical',
+					overflow: 'hidden',
+					transition: 'color .15s',
+				}}
+			>
+				{video.title}
+			</p>
+			<p style={{ fontSize: 11, color: '#666', margin: 0 }}>
+				{timeAgo(video.created_at)}
+			</p>
+		</Link>
 	)
 }
 
@@ -233,7 +568,6 @@ function PlaylistCard({ playlist }: { playlist: Playlist }) {
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 		>
-			{/* Thumbnail */}
 			<div
 				style={{
 					position: 'relative',
@@ -281,7 +615,6 @@ function PlaylistCard({ playlist }: { playlist: Playlist }) {
 						</svg>
 					</div>
 				)}
-				{/* Video count badge */}
 				<div
 					style={{
 						position: 'absolute',
@@ -303,7 +636,6 @@ function PlaylistCard({ playlist }: { playlist: Playlist }) {
 						{playlist.video_count === 1 ? 'video' : 'videos'}
 					</span>
 				</div>
-				{/* Private badge */}
 				{playlist.visibility === 'private' && (
 					<div
 						style={{
@@ -367,102 +699,6 @@ function PlaylistCard({ playlist }: { playlist: Playlist }) {
 				Updated {timeAgo(playlist.updated_at)}
 			</p>
 		</Link>
-	)
-}
-
-/* ─── VideoModal ─── */
-function VideoModal({ video, onClose }: { video: Video; onClose: () => void }) {
-	useEffect(() => {
-		fetch(`/api/videos/${video.id}/view`, { method: 'POST' }).catch(() => {})
-		const handler = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-		window.addEventListener('keydown', handler)
-		return () => window.removeEventListener('keydown', handler)
-	}, [video.id, onClose])
-
-	return (
-		<div
-			style={{
-				position: 'fixed',
-				inset: 0,
-				zIndex: 2000,
-				background: 'rgba(0,0,0,0.95)',
-				display: 'flex',
-				alignItems: 'center',
-				justifyContent: 'center',
-				padding: 20,
-			}}
-			onClick={e => e.target === e.currentTarget && onClose()}
-		>
-			<div
-				style={{
-					width: '100%',
-					maxWidth: 900,
-					borderRadius: 12,
-					overflow: 'hidden',
-					background: '#111',
-				}}
-			>
-				<video
-					src={video.video_url}
-					controls
-					autoPlay
-					style={{
-						width: '100%',
-						maxHeight: '65vh',
-						background: '#000',
-						display: 'block',
-					}}
-				/>
-				<div
-					style={{
-						padding: '16px 20px',
-						display: 'flex',
-						alignItems: 'flex-start',
-						justifyContent: 'space-between',
-						gap: 16,
-					}}
-				>
-					<div>
-						<h2
-							style={{
-								fontSize: 17,
-								fontWeight: 700,
-								color: '#fff',
-								margin: '0 0 4px',
-							}}
-						>
-							{video.title}
-						</h2>
-						<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-							{fmt(video.views_count)} views
-						</p>
-					</div>
-					<button
-						onClick={onClose}
-						style={{
-							background: 'none',
-							border: 'none',
-							cursor: 'pointer',
-							color: '#666',
-							padding: 4,
-							flexShrink: 0,
-						}}
-					>
-						<svg
-							width='20'
-							height='20'
-							viewBox='0 0 24 24'
-							fill='none'
-							stroke='currentColor'
-							strokeWidth='2'
-						>
-							<line x1='18' y1='6' x2='6' y2='18' />
-							<line x1='6' y1='6' x2='18' y2='18' />
-						</svg>
-					</button>
-				</div>
-			</div>
-		</div>
 	)
 }
 
@@ -939,7 +1175,6 @@ export default function ChannelPage() {
 	const [subscribed, setSubscribed] = useState(false)
 	const [subscribersCount, setSubscribersCount] = useState(0)
 	const [subLoading, setSubLoading] = useState(false)
-	const [playingVideo, setPlayingVideo] = useState<Video | null>(null)
 
 	const isOwner = currentUser?.id === params.userId
 	const totalViews = videos.reduce((sum, v) => sum + (v.views_count || 0), 0)
@@ -967,11 +1202,9 @@ export default function ChannelPage() {
 			.finally(() => setLoading(false))
 	}, [params.userId])
 
-	// Lazy-load playlists when tab is selected
 	useEffect(() => {
 		if (tab !== 'playlists' || playlistsLoaded) return
 		setPlaylistsLoading(true)
-		// If owner: fetch own playlists (all), else fetch public ones via channel endpoint
 		const url = isOwner
 			? '/api/me/playlists'
 			: `/api/users/${params.userId}/playlists`
@@ -1046,23 +1279,42 @@ export default function ChannelPage() {
 
 	const displayName = user.display_name?.trim() || user.username
 	const avatarColor = colorFromId(user.id)
-	const tabs: Tab[] = ['videos', 'playlists', 'about']
+	const tabs: Tab[] = ['videos', 'shorts', 'playlists', 'about']
+	const shorts = videos.filter(v => v.video_type === 'shorts')
+	const regularVideos = videos.filter(v => v.video_type === 'normal')
 
 	return (
 		<UserLayout>
 			<style>{`
-				@keyframes spin { to { transform: rotate(360deg) } }
-				@keyframes fadeUp { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
-				@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.45} }
+				@keyframes spin    { to { transform: rotate(360deg) } }
+				@keyframes fadeUp  { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
+				@keyframes pulse   { 0%,100%{opacity:1}50%{opacity:.45} }
+				@keyframes pop     { from{opacity:0;transform:scale(.95) translateY(-4px)} to{opacity:1;transform:scale(1) translateY(0)} }
+
+				.ch-video-grid { container-type: inline-size; }
+				.ch-video-grid-inner {
+					display: grid;
+					grid-template-columns: repeat(4, 1fr);
+					gap: 24px 16px;
+				}
+				@container (max-width: 900px) { .ch-video-grid-inner { grid-template-columns: repeat(3, 1fr); } }
+				@container (max-width: 620px) { .ch-video-grid-inner { grid-template-columns: repeat(2, 1fr); } }
+
+				.ch-shorts-grid { container-type: inline-size; }
+				.ch-shorts-grid-inner {
+					display: grid;
+					grid-template-columns: repeat(5, 1fr);
+					gap: 16px;
+				}
+				@container (max-width: 900px) { .ch-shorts-grid-inner { grid-template-columns: repeat(4, 1fr); } }
+				@container (max-width: 640px) { .ch-shorts-grid-inner { grid-template-columns: repeat(3, 1fr); } }
 			`}</style>
 
-			{/* Constrain page width for better banner quality */}
 			<div style={{ maxWidth: 1000, margin: '0 auto' }}>
-				{/* ── Banner — 4:1 ratio (wide but not absurdly thin) ── */}
+				{/* ── Banner ── */}
 				<div
 					style={{
 						width: '100%',
-						/* 4:1 aspect ratio — good quality at 900px → 225px tall */
 						paddingBottom: '25%',
 						position: 'relative',
 						borderRadius: 14,
@@ -1071,7 +1323,6 @@ export default function ChannelPage() {
 							? 'transparent'
 							: `linear-gradient(135deg, ${avatarColor}44 0%, #181818 70%)`,
 						border: '1px solid #1a1a1a',
-						marginBottom: 0,
 					}}
 				>
 					{user.banner_url && (
@@ -1114,7 +1365,6 @@ export default function ChannelPage() {
 						animation: 'fadeUp 0.4s ease both',
 					}}
 				>
-					{/* Avatar */}
 					<div
 						style={{
 							width: 82,
@@ -1144,7 +1394,6 @@ export default function ChannelPage() {
 						)}
 					</div>
 
-					{/* Name + stats */}
 					<div style={{ flex: 1, minWidth: 160, paddingBottom: 4 }}>
 						<h1
 							style={{
@@ -1160,7 +1409,6 @@ export default function ChannelPage() {
 						<p style={{ fontSize: 12, color: '#555', margin: '0 0 6px' }}>
 							@{user.username}
 						</p>
-						{/* Subscribers + video count inline */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 							<span style={{ fontSize: 13, color: '#888' }}>
 								<span style={{ color: '#ccc', fontWeight: 600 }}>
@@ -1186,9 +1434,8 @@ export default function ChannelPage() {
 						</div>
 					</div>
 
-					{/* Action buttons */}
 					<div
-						style={{ display: 'flex', gap: 8, paddingBottom: 6, flexShrink: 0 }}
+						style={{ display: 'flex', gap: 8, paddingBottom: 26, flexShrink: 0 }}
 					>
 						{isOwner ? (
 							<>
@@ -1323,9 +1570,10 @@ export default function ChannelPage() {
 
 				{/* ── Content ── */}
 				<div key={tab} style={{ animation: 'fadeUp 0.25s ease both' }}>
+
 					{/* Videos tab */}
 					{tab === 'videos' &&
-						(videos.length === 0 ? (
+						(regularVideos.length === 0 ? (
 							<div
 								style={{
 									textAlign: 'center',
@@ -1350,26 +1598,33 @@ export default function ChannelPage() {
 								</p>
 								{isOwner && (
 									<p style={{ fontSize: 13, color: '#444' }}>
-										Upload your first video using the Upload button in the
-										header
+										Upload your first video using the Upload button in the header
 									</p>
 								)}
 							</div>
 						) : (
-							<div
-								style={{
-									display: 'grid',
-									gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-									gap: 20,
-								}}
-							>
-								{videos.map(v => (
-									<VideoCard
-										key={v.id}
-										video={v}
-										onPlay={() => setPlayingVideo(v)}
-									/>
-								))}
+							<div className='ch-video-grid'>
+								<div className='ch-video-grid-inner'>
+									{regularVideos.map(v => (
+										<VideoCard key={v.id} video={v} channelUser={user} />
+									))}
+								</div>
+							</div>
+						))}
+
+					{/* Shorts tab */}
+					{tab === 'shorts' &&
+						(shorts.length === 0 ? (
+							<div style={{ textAlign: 'center', padding: '60px 20px' }}>
+								<p style={{ fontSize: 15, color: '#666' }}>No shorts yet</p>
+							</div>
+						) : (
+							<div className='ch-shorts-grid'>
+								<div className='ch-shorts-grid-inner'>
+									{shorts.map(v => (
+										<ShortsCard key={v.id} video={v} />
+									))}
+								</div>
 							</div>
 						))}
 
@@ -1554,12 +1809,6 @@ export default function ChannelPage() {
 					onSave={updates =>
 						setUser(prev => (prev ? { ...prev, ...updates } : prev))
 					}
-				/>
-			)}
-			{playingVideo && (
-				<VideoModal
-					video={playingVideo}
-					onClose={() => setPlayingVideo(null)}
 				/>
 			)}
 		</UserLayout>

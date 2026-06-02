@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import UserLayout from '@/app/_components/layout/UserLayout'
 import { useAuthContext } from '@/context/AuthContext'
@@ -271,7 +271,7 @@ function SidebarShortCard({ video }: { video: Related }) {
 
 	return (
 		<Link
-			href={`/en/watch/${video.id}`}
+			href={`/en/shorts/${video.id}`}
 			style={{ textDecoration: 'none', display: 'block' }}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
@@ -317,24 +317,6 @@ function SidebarShortCard({ video }: { video: Related }) {
 					</div>
 				)}
 
-				{/* SHORTS badge */}
-				<div
-					style={{
-						position: 'absolute',
-						top: 6,
-						left: 6,
-						background: '#e63946',
-						borderRadius: 4,
-						padding: '2px 6px',
-						fontSize: 9,
-						fontWeight: 800,
-						color: '#fff',
-						letterSpacing: '0.3px',
-					}}
-				>
-					SHORTS
-				</div>
-
 				{/* Play overlay */}
 				{hovered && (
 					<div
@@ -379,7 +361,7 @@ function SidebarShortCard({ video }: { video: Related }) {
 						borderRadius: 5,
 					}}
 				>
-					{fmt(video.views_count)}
+					{fmt(video.views_count)} views
 				</div>
 			</div>
 
@@ -408,451 +390,7 @@ function SidebarShortCard({ video }: { video: Related }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   COMMENT ITEM
-───────────────────────────────────────────────────────────────────────────── */
-
-function CommentItem({ comment }: { comment: Comment }) {
-	const name = comment.display_name || comment.username
-	const [liked, setLiked] = useState(comment.is_liked ?? false)
-	const [likesCount, setLikesCount] = useState(comment.likes_count)
-
-	function toggleLike() {
-		setLiked(v => !v)
-		setLikesCount(v => (liked ? v - 1 : v + 1))
-	}
-
-	return (
-		<div style={{ display: 'flex', gap: 12, paddingBottom: 22 }}>
-			<Link
-				href={`/en/channel/${comment.user_id}`}
-				style={{ flexShrink: 0, textDecoration: 'none' }}
-			>
-				<Avatar
-					url={comment.avatar_url}
-					name={name}
-					id={comment.user_id}
-					size={38}
-				/>
-			</Link>
-			<div style={{ flex: 1, minWidth: 0 }}>
-				<div
-					style={{
-						display: 'flex',
-						alignItems: 'baseline',
-						gap: 8,
-						marginBottom: 5,
-					}}
-				>
-					<Link
-						href={`/en/channel/${comment.user_id}`}
-						style={{ textDecoration: 'none' }}
-					>
-						<span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
-							{name}
-						</span>
-					</Link>
-					<span style={{ fontSize: 11, color: '#555' }}>
-						{timeAgo(comment.created_at)}
-					</span>
-				</div>
-				<p
-					style={{
-						fontSize: 14,
-						color: '#ccc',
-						lineHeight: 1.65,
-						margin: '0 0 8px',
-						whiteSpace: 'pre-wrap',
-					}}
-				>
-					{comment.content}
-				</p>
-				<button
-					onClick={toggleLike}
-					style={{
-						display: 'flex',
-						alignItems: 'center',
-						gap: 5,
-						background: 'none',
-						border: 'none',
-						cursor: 'pointer',
-						color: liked ? '#e63946' : '#666',
-						fontSize: 12,
-						fontFamily: 'inherit',
-						padding: '2px 0',
-						transition: 'color 0.15s',
-					}}
-				>
-					<svg
-						width='13'
-						height='13'
-						viewBox='0 0 24 24'
-						fill={liked ? 'currentColor' : 'none'}
-						stroke='currentColor'
-						strokeWidth='2'
-					>
-						<path d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' />
-					</svg>
-					{likesCount > 0 && <span>{fmt(likesCount)}</span>}
-				</button>
-			</div>
-		</div>
-	)
-}
-/* ─────────────────────────────────────────────────────────────────────────────
    SHORTS PLAYER  (unchanged)
-───────────────────────────────────────────────────────────────────────────── */
-
-function ShortsPlayer({ v, related }: { v: Video; related: Related[] }) {
-	const name = v.display_name || v.username
-	const vidRef = useRef<HTMLVideoElement>(null)
-	const [muted, setMuted] = useState(true)
-	const [paused, setPaused] = useState(false)
-	const [showIcon, setShowIcon] = useState(false)
-
-	useEffect(() => {
-		const el = vidRef.current
-		if (!el) return
-		el.muted = true
-		el.play().catch(() => {})
-	}, [v.video_url])
-
-	function tap() {
-		const el = vidRef.current
-		if (!el) return
-		if (el.paused) {
-			el.play()
-			setPaused(false)
-		} else {
-			el.pause()
-			setPaused(true)
-		}
-		setShowIcon(true)
-		setTimeout(() => setShowIcon(false), 700)
-	}
-
-	function toggleMute(e: React.MouseEvent) {
-		e.stopPropagation()
-		const el = vidRef.current
-		if (!el) return
-		el.muted = !el.muted
-		setMuted(el.muted)
-	}
-
-	const nearby = related
-		.filter(r => r.video_type === 'shorts' && r.id !== v.id)
-		.slice(0, 6)
-
-	return (
-		<div
-			style={{
-				display: 'flex',
-				justifyContent: 'center',
-				gap: 32,
-				alignItems: 'flex-start',
-				flexWrap: 'wrap',
-			}}
-		>
-			<div style={{ width: 380, flexShrink: 0 }}>
-				<div
-					style={{
-						display: 'flex',
-						alignItems: 'center',
-						gap: 8,
-						marginBottom: 12,
-					}}
-				>
-					<span
-						style={{
-							background: '#e63946',
-							color: '#fff',
-							fontSize: 11,
-							fontWeight: 700,
-							padding: '3px 10px',
-							borderRadius: 6,
-						}}
-					>
-						SHORTS
-					</span>
-					<span style={{ fontSize: 12, color: '#555' }}>
-						{timeAgo(v.created_at)}
-					</span>
-				</div>
-				<div
-					style={{
-						width: 380,
-						height: 675,
-						borderRadius: 18,
-						overflow: 'hidden',
-						background: '#000',
-						position: 'relative',
-						cursor: 'pointer',
-					}}
-					onClick={tap}
-				>
-					<video
-						ref={vidRef}
-						src={v.video_url}
-						loop
-						playsInline
-						muted
-						poster={v.thumbnail_url || undefined}
-						style={{
-							width: '100%',
-							height: '100%',
-							objectFit: 'contain',
-							display: 'block',
-							background: '#000',
-						}}
-					/>
-					{showIcon && (
-						<div
-							style={{
-								position: 'absolute',
-								inset: 0,
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								pointerEvents: 'none',
-							}}
-						>
-							<div
-								style={{
-									width: 64,
-									height: 64,
-									borderRadius: '50%',
-									background: 'rgba(0,0,0,.55)',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									animation: 'fadeOut .6s ease forwards',
-								}}
-							>
-								{paused ? (
-									<svg width='28' height='28' viewBox='0 0 24 24' fill='#fff'>
-										<path d='M6 19h4V5H6v14zm8-14v14h4V5h-4z' />
-									</svg>
-								) : (
-									<svg width='28' height='28' viewBox='0 0 24 24' fill='#fff'>
-										<path d='M8 5v14l11-7z' />
-									</svg>
-								)}
-							</div>
-						</div>
-					)}
-					<div
-						style={{
-							position: 'absolute',
-							bottom: 0,
-							left: 0,
-							right: 0,
-							background:
-								'linear-gradient(to top, rgba(0,0,0,.9) 0%, transparent 100%)',
-							padding: '60px 16px 16px',
-							pointerEvents: 'none',
-						}}
-					>
-						<p
-							style={{
-								fontSize: 15,
-								fontWeight: 700,
-								color: '#fff',
-								margin: '0 0 4px',
-							}}
-						>
-							{v.title}
-						</p>
-						{v.description && (
-							<p
-								style={{
-									fontSize: 13,
-									color: 'rgba(255,255,255,.6)',
-									margin: 0,
-									display: '-webkit-box',
-									WebkitLineClamp: 2,
-									WebkitBoxOrient: 'vertical',
-									overflow: 'hidden',
-								}}
-							>
-								{v.description}
-							</p>
-						)}
-					</div>
-					<button
-						onClick={toggleMute}
-						style={{
-							position: 'absolute',
-							top: 14,
-							right: 14,
-							width: 36,
-							height: 36,
-							borderRadius: '50%',
-							background: 'rgba(0,0,0,.5)',
-							border: 'none',
-							cursor: 'pointer',
-							color: '#fff',
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'center',
-						}}
-					>
-						{muted ? (
-							<svg
-								width='15'
-								height='15'
-								viewBox='0 0 24 24'
-								fill='none'
-								stroke='currentColor'
-								strokeWidth='2'
-							>
-								<polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5' />
-								<line x1='23' y1='9' x2='17' y2='15' />
-								<line x1='17' y1='9' x2='23' y2='15' />
-							</svg>
-						) : (
-							<svg
-								width='15'
-								height='15'
-								viewBox='0 0 24 24'
-								fill='none'
-								stroke='currentColor'
-								strokeWidth='2'
-							>
-								<polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5' />
-								<path d='M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07' />
-							</svg>
-						)}
-					</button>
-				</div>
-				<div
-					style={{
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'space-between',
-						marginTop: 14,
-					}}
-				>
-					<Link
-						href={`/en/channel/${v.user_id}`}
-						style={{
-							textDecoration: 'none',
-							display: 'flex',
-							alignItems: 'center',
-							gap: 10,
-						}}
-					>
-						<Avatar url={v.avatar_url} name={name} id={v.user_id} size={36} />
-						<p
-							style={{
-								fontSize: 14,
-								fontWeight: 600,
-								color: '#fff',
-								margin: 0,
-							}}
-						>
-							{name}
-						</p>
-					</Link>
-					<div
-						style={{ display: 'flex', gap: 18, fontSize: 13, color: '#666' }}
-					>
-						<span>👁 {fmt(v.views_count)}</span>
-						<span>♥ {fmt(v.likes_count)}</span>
-					</div>
-				</div>
-			</div>
-			{nearby.length > 0 && (
-				<div style={{ paddingTop: 52 }}>
-					<p
-						style={{
-							fontSize: 11,
-							fontWeight: 700,
-							color: '#444',
-							letterSpacing: '1.2px',
-							textTransform: 'uppercase',
-							marginBottom: 16,
-						}}
-					>
-						More Shorts
-					</p>
-					<div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-						{nearby.map(r => (
-							<Link
-								key={r.id}
-								href={`/en/watch/${r.id}`}
-								style={{ textDecoration: 'none', display: 'flex', gap: 10 }}
-							>
-								<div
-									style={{
-										width: 76,
-										height: 136,
-										borderRadius: 10,
-										overflow: 'hidden',
-										background: '#1a1a1a',
-										flexShrink: 0,
-									}}
-								>
-									{r.thumbnail_url ? (
-										<img
-											src={r.thumbnail_url}
-											alt={r.title}
-											style={{
-												width: '100%',
-												height: '100%',
-												objectFit: 'cover',
-											}}
-										/>
-									) : (
-										<div
-											style={{
-												width: '100%',
-												height: '100%',
-												display: 'flex',
-												alignItems: 'center',
-												justifyContent: 'center',
-											}}
-										>
-											<svg
-												width='18'
-												height='18'
-												viewBox='0 0 24 24'
-												fill='#333'
-											>
-												<path d='M8 5v14l11-7z' />
-											</svg>
-										</div>
-									)}
-								</div>
-								<div style={{ flex: 1, minWidth: 0 }}>
-									<p
-										style={{
-											fontSize: 13,
-											fontWeight: 600,
-											color: '#fff',
-											margin: '0 0 4px',
-											lineHeight: 1.35,
-											display: '-webkit-box',
-											WebkitLineClamp: 3,
-											WebkitBoxOrient: 'vertical',
-											overflow: 'hidden',
-										}}
-									>
-										{r.title}
-									</p>
-									<p style={{ fontSize: 11, color: '#666', margin: 0 }}>
-										{fmt(r.views_count)} views
-									</p>
-								</div>
-							</Link>
-						))}
-					</div>
-				</div>
-			)}
-		</div>
-	)
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   NORMAL PLAYER — two-column layout
 ───────────────────────────────────────────────────────────────────────────── */
 
 function NormalPlayer({
@@ -1345,14 +883,17 @@ function NormalPlayer({
 
 				{/* ── RIGHT SIDEBAR ── */}
 				<aside style={{ width: 400, flexShrink: 0, paddingTop: 2 }}>
-					{showQueue ? (
-						<QueueSidebar
-							currentVideoId={v.id}
-							queueType={queueType as QueueType}
-							playlistId={playlistId}
-							startIndex={queueIndex}
-						/>
-					) : (
+					<div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+						{showQueue && (
+							<div style={{ height: 520, maxHeight: '62vh' }}>
+								<QueueSidebar
+									currentVideoId={v.id}
+									queueType={queueType as QueueType}
+									playlistId={playlistId}
+									startIndex={queueIndex}
+								/>
+							</div>
+						)}
 						<div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 							{/* ── Shorts section (3-column grid) ── */}
 							{relatedShorts.length > 0 && (
@@ -1368,31 +909,20 @@ function NormalPlayer({
 										<div
 											style={{ display: 'flex', alignItems: 'center', gap: 7 }}
 										>
-											<div
-												style={{
-													width: 3,
-													height: 14,
-													background: '#e63946',
-													borderRadius: 2,
-												}}
-											/>
+											<svg
+												width='20'
+												height='20'
+												viewBox='0 0 24 24'
+												fill='red'
+											>
+												<path d='M17.77 10.32l-1.2-.5L18 9.19C19.38 8.42 19.86 6.68 19.09 5.3c-.77-1.38-2.51-1.86-3.89-1.09l-5.85 3.28-.01.02-1.17.65c-1.38.77-1.86 2.51-1.09 3.89.28.49.68.87 1.14 1.12l1.2.5L8 13.81C6.62 14.58 6.14 16.32 6.91 17.7c.77 1.38 2.51 1.86 3.89 1.09l5.85-3.27.01-.01 1.17-.65c1.38-.77 1.86-2.51 1.09-3.89-.28-.49-.68-.87-1.15-1.14zM13 14.5l-2-1.17 2-1.16 2 1.16-2 1.17z' />
+											</svg>
 											<span
 												style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}
 											>
 												Shorts
 											</span>
 										</div>
-										<Link
-											href='/en/shorts'
-											style={{
-												fontSize: 12,
-												color: '#e63946',
-												textDecoration: 'none',
-												fontWeight: 600,
-											}}
-										>
-											View all →
-										</Link>
 									</div>
 									{/* 3-column shorts grid */}
 									<div
@@ -1451,7 +981,7 @@ function NormalPlayer({
 								)}
 							</div>
 						</div>
-					)}
+					</div>
 				</aside>
 			</div>
 
@@ -1468,12 +998,14 @@ function NormalPlayer({
 
 export default function WatchPage() {
 	const { id } = useParams<{ id: string }>()
+	const router = useRouter()
 	const searchParams = useSearchParams()
 	const { user } = useAuthContext()
 	const [video, setVideo] = useState<Video | null>(null)
 	const [related, setRelated] = useState<Related[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
+	const [redirectingShort, setRedirectingShort] = useState(false)
 
 	const queueParam = searchParams.get('queue') as QueueType | null
 	const queueIndex = parseInt(searchParams.get('index') || '0', 10)
@@ -1484,6 +1016,11 @@ export default function WatchPage() {
 
 	useEffect(() => {
 		if (!id) return
+		setLoading(true)
+		setError(null)
+		setVideo(null)
+		setRelated([])
+		setRedirectingShort(false)
 		Promise.all([
 			fetch(`/api/videos/${id}`).then(r => r.json()),
 			fetch('/api/videos?limit=24').then(r => r.json()),
@@ -1493,13 +1030,19 @@ export default function WatchPage() {
 					setError(vd.error || 'Not found')
 					return
 				}
-				setVideo(vd.data.video)
+				const nextVideo = vd.data.video as Video
+				if (nextVideo.video_type === 'shorts') {
+					setRedirectingShort(true)
+					router.replace(`/en/shorts/${nextVideo.id}`)
+					return
+				}
+				setVideo(nextVideo)
 				fetch(`/api/videos/${id}/view`, { method: 'POST' }).catch(() => {})
 				if (fd.ok) setRelated(fd.data.items)
 			})
 			.catch(() => setError('Failed to load'))
 			.finally(() => setLoading(false))
-	}, [id])
+	}, [id, router])
 
 	return (
 		<UserLayout>
@@ -1592,6 +1135,23 @@ export default function WatchPage() {
 						))}
 					</div>
 				</div>
+			) : redirectingShort ? (
+				<div style={{ textAlign: 'center', paddingTop: 80 }}>
+					<div
+						style={{
+							width: 28,
+							height: 28,
+							border: '3px solid #1a1a1a',
+							borderTopColor: '#e63946',
+							borderRadius: '50%',
+							animation: 'spin .8s linear infinite',
+							margin: '0 auto 14px',
+						}}
+					/>
+					<p style={{ color: '#555', fontSize: 14, margin: 0 }}>
+						Opening Shorts...
+					</p>
+				</div>
 			) : error || !video ? (
 				<div style={{ textAlign: 'center', paddingTop: 80 }}>
 					<div style={{ fontSize: 52, marginBottom: 16 }}>😕</div>
@@ -1612,18 +1172,14 @@ export default function WatchPage() {
 				</div>
 			) : (
 				<div style={{ animation: 'fadeUp .25s ease both' }}>
-					{video.video_type === 'shorts' ? (
-						<ShortsPlayer v={video} related={related} />
-					) : (
-						<NormalPlayer
-							v={video}
-							related={related}
-							currentUser={user}
-							queueType={queueType}
-							queueIndex={queueIndex}
-							playlistId={playlistId}
-						/>
-					)}
+					<NormalPlayer
+						v={video}
+						related={related}
+						currentUser={user}
+						queueType={queueType}
+						queueIndex={queueIndex}
+						playlistId={playlistId}
+					/>
 				</div>
 			)}
 		</UserLayout>

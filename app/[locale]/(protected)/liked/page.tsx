@@ -24,6 +24,13 @@ type LikedVideo = {
 	avatar_url: string | null
 }
 
+type ProfileData = {
+	avatar_url: string | null
+	display_name: string | null
+	username: string
+	id: string
+}
+
 type SortKey =
 	| 'date_added_desc'
 	| 'date_added_asc'
@@ -232,10 +239,14 @@ function VideoRow({
 	video,
 	index,
 	onPlay,
+	onRemove,
+	removing,
 }: {
 	video: LikedVideo
 	index: number
 	onPlay: () => void
+	onRemove: () => void
+	removing: boolean
 }) {
 	const [hovered, setHovered] = useState(false)
 	const name = video.display_name || video.username
@@ -406,32 +417,52 @@ function VideoRow({
 					{fmt(video.views_count)} views · {timeAgo(video.created_at)}
 				</p>
 			</div>
-			{/* Likes badge */}
-			<div
+			<button
+				onClick={onRemove}
+				disabled={removing}
+				title='Remove'
 				style={{
-					flexShrink: 0,
+					width: 32,
+					height: 32,
+					borderRadius: 8,
+					border: '1px solid transparent',
+					background: 'transparent',
+					color: '#555',
+					cursor: removing ? 'not-allowed' : 'pointer',
 					display: 'flex',
 					alignItems: 'center',
-					gap: 5,
-					padding: '4px 10px',
-					borderRadius: 20,
-					background: 'rgba(230,57,70,0.1)',
-					border: '1px solid rgba(230,57,70,0.2)',
+					justifyContent: 'center',
+					flexShrink: 0,
+					transition: 'all 0.15s',
+					opacity: hovered ? 1 : 0,
+				}}
+				onMouseEnter={e => {
+					e.currentTarget.style.borderColor = '#e63946'
+					e.currentTarget.style.color = '#e63946'
+					e.currentTarget.style.background = 'rgba(230,57,70,0.08)'
+				}}
+				onMouseLeave={e => {
+					e.currentTarget.style.borderColor = 'transparent'
+					e.currentTarget.style.color = '#555'
+					e.currentTarget.style.background = 'transparent'
 				}}
 			>
-				<svg width='12' height='12' viewBox='0 0 24 24' fill='#e63946'>
-					<path d='M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1.91l-.01-.01L23 10z' />
-				</svg>
-				<span style={{ fontSize: 12, fontWeight: 600, color: '#e63946' }}>
-					{fmt(video.likes_count)}
-				</span>
-			</div>
-			<div style={{ flexShrink: 0, textAlign: 'right', minWidth: 64 }}>
-				<p style={{ fontSize: 11, color: '#444', margin: 0 }}>Liked</p>
-				<p style={{ fontSize: 11, color: '#555', margin: 0 }}>
-					{timeAgo(video.liked_at)}
-				</p>
-			</div>
+				{removing ? (
+					<Spinner size={13} />
+				) : (
+					<svg
+						width='14'
+						height='14'
+						viewBox='0 0 24 24'
+						fill='none'
+						stroke='currentColor'
+						strokeWidth='2'
+					>
+						<line x1='18' y1='6' x2='6' y2='18' />
+						<line x1='6' y1='6' x2='18' y2='18' />
+					</svg>
+				)}
+			</button>
 		</div>
 	)
 }
@@ -443,6 +474,12 @@ export default function LikedPage() {
 	const [loading, setLoading] = useState(true)
 	const [sort, setSort] = useState<SortKey>('date_added_desc')
 	const [search, setSearch] = useState('')
+	const [removingId, setRemovingId] = useState<string | null>(null)
+	const [clearing, setClearing] = useState(false)
+	const [toast, setToast] = useState<{
+		msg: string
+		type: 'success' | 'error'
+	} | null>(null)
 
 	useEffect(() => {
 		if (!user) return
@@ -454,6 +491,7 @@ export default function LikedPage() {
 			.catch(() => {})
 			.finally(() => setLoading(false))
 	}, [user])
+
 
 	const processed = useMemo(() => {
 		let arr = sortVideos(videos, sort)
@@ -478,6 +516,58 @@ export default function LikedPage() {
 	function playAt(i: number) {
 		router.push(`/en/watch/${processed[i].id}?queue=liked&index=${i}`)
 	}
+
+	function showToast(msg: string, type: 'success' | 'error' = 'success') {
+		setToast({ msg, type })
+		setTimeout(() => setToast(null), 3000)
+	}
+
+	async function handleRemove(videoId: string) {
+		setRemovingId(videoId)
+		try {
+			const res = await fetch('/api/me/liked', {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ video_id: videoId }),
+			})
+			if (!res.ok) throw new Error()
+			setVideos(prev => prev.filter(v => v.id !== videoId))
+			showToast('Removed from Liked Videos')
+		} catch {
+			showToast('Failed to remove', 'error')
+		} finally {
+			setRemovingId(null)
+		}
+	}
+
+		async function handleClearAll() {
+			if (!confirm('Remove all videos from Watch Later?')) return
+			setClearing(true)
+			const ids = videos.map(v => v.id)
+			setVideos([])
+			let failed = 0
+			await Promise.all(
+				ids.map(id =>
+					fetch('/api/me/watch-later', {
+						method: 'DELETE',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ video_id: id }),
+					}).catch(() => {
+						failed++
+					}),
+				),
+			)
+			setClearing(false)
+			if (failed > 0) {
+				showToast(`${failed} failed`, 'error')
+				fetch('/api/me/watch-later')
+					.then(r => r.json())
+					.then(d => {
+						if (d.ok) setVideos(d.data.items)
+					})
+					.catch(() => {})
+			} else showToast('Watch Later cleared')
+		}
 
 	return (
 		<UserLayout>
@@ -708,21 +798,17 @@ export default function LikedPage() {
 									String(videos.length),
 									videos.length === 1 ? 'video' : 'videos',
 								],
-								[fmt(totalLikes), 'total likes'],
 							].map(([v, l]) => (
 								<div key={l}>
 									<span
-										style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}
+										style={{ fontSize: 13, color: '#fff' }}
 									>
 										{v}
 									</span>
-									<span style={{ fontSize: 12, color: '#666' }}> {l}</span>
+									<span style={{ fontSize: 12, color: '#fff' }}> {l}</span>
 								</div>
 							))}
 						</div>
-						<p style={{ fontSize: 11, color: '#444', margin: '0 0 20px' }}>
-							Videos you&apos;ve given a thumbs up
-						</p>
 						<button
 							onClick={playAll}
 							style={{
@@ -741,6 +827,7 @@ export default function LikedPage() {
 								cursor: 'pointer',
 								fontFamily: 'inherit',
 								transition: 'background 0.15s',
+								marginBottom: 10,
 								boxSizing: 'border-box',
 							}}
 							onMouseEnter={e => (e.currentTarget.style.background = '#c62e3b')}
@@ -755,6 +842,55 @@ export default function LikedPage() {
 								<path d='M8 5v14l11-7z' />
 							</svg>
 							Play All
+						</button>
+						<button
+							onClick={handleClearAll}
+							disabled={clearing}
+							style={{
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								gap: 8,
+								padding: '10px 20px',
+								borderRadius: 24,
+								width: '100%',
+								background: 'transparent',
+								border: '1px solid #2a2a2a',
+								color: '#888',
+								fontSize: 13,
+								fontWeight: 600,
+								cursor: clearing ? 'not-allowed' : 'pointer',
+								fontFamily: 'inherit',
+								transition: 'all 0.15s',
+								boxSizing: 'border-box',
+							}}
+							onMouseEnter={e => {
+								if (!clearing) {
+									e.currentTarget.style.borderColor = '#e63946'
+									e.currentTarget.style.color = '#e63946'
+								}
+							}}
+							onMouseLeave={e => {
+								e.currentTarget.style.borderColor = '#2a2a2a'
+								e.currentTarget.style.color = '#888'
+							}}
+						>
+							{clearing ? (
+								<Spinner size={13} />
+							) : (
+								<svg
+									width='13'
+									height='13'
+									viewBox='0 0 24 24'
+									fill='none'
+									stroke='currentColor'
+									strokeWidth='2'
+								>
+									<polyline points='3 6 5 6 21 6' />
+									<path d='M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6' />
+								</svg>
+							)}
+							{clearing ? 'Clearing…' : 'Clear All'}
 						</button>
 					</div>
 
@@ -778,7 +914,7 @@ export default function LikedPage() {
 									flex: 1,
 								}}
 							>
-								{processed.length} {processed.length === 1 ? 'Video' : 'Videos'}
+								Videos you've given a thumbs up
 								{search && (
 									<span
 										style={{
@@ -900,6 +1036,8 @@ export default function LikedPage() {
 										video={video}
 										index={index}
 										onPlay={() => playAt(index)}
+										onRemove={() => handleRemove(video.id)}
+										removing={removingId === video.id}
 									/>
 								))}
 							</div>

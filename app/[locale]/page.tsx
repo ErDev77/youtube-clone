@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import UserLayout from '../_components/layout/UserLayout'
+import PlaylistPicker from '../_components/video/PlaylistPicker'
 
 type Video = {
 	id: string
@@ -44,13 +45,15 @@ function avatarColor(id: string) {
 	return c[Math.abs(h) % c.length]
 }
 
-// ── Kebab menu ────────────────────────────────────────────────────────────────
+// Kebab menu
 function KebabMenu({
 	videoId,
 	onClose,
+	onAddToPlaylist,
 }: {
 	videoId: string
 	onClose: () => void
+	onAddToPlaylist: () => void
 }) {
 	const ref = useRef<HTMLDivElement>(null)
 	useEffect(() => {
@@ -73,6 +76,16 @@ function KebabMenu({
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ video_id: videoId }),
 				}).catch(() => {})
+				onClose()
+			},
+		},
+		{
+			label: 'Add to Playlist',
+			icon: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
+			onClick: (e: React.MouseEvent) => {
+				e.preventDefault()
+				e.stopPropagation()
+				onAddToPlaylist()
 				onClose()
 			},
 		},
@@ -139,207 +152,219 @@ function KebabMenu({
 	)
 }
 
-// ── Normal video card ─────────────────────────────────────────────────────────
 function VideoCard({ video }: { video: Video }) {
 	const [hovered, setHovered] = useState(false)
 	const [menu, setMenu] = useState(false)
 	const color = avatarColor(video.uploader.id)
 	const initials = video.uploader.username.slice(0, 2).toUpperCase()
+	const [playlistOpen, setPlaylistOpen] = useState(false)
 
 	return (
-		<div
-			onMouseEnter={() => setHovered(true)}
-			onMouseLeave={() => setHovered(false)}
-			style={{ position: 'relative' }}
-		>
-			<Link
-				href={`/en/watch/${video.id}`}
-				style={{ textDecoration: 'none', display: 'block' }}
+		<>
+			<div
+				onMouseEnter={() => setHovered(true)}
+				onMouseLeave={() => setHovered(false)}
+				style={{ position: 'relative' }}
 			>
-				<div
-					style={{
-						position: 'relative',
-						paddingBottom: '56.25%',
-						borderRadius: 10,
-						overflow: 'hidden',
-						background: '#1a1a1a',
-					}}
+				<Link
+					href={`/en/watch/${video.id}`}
+					style={{ textDecoration: 'none', display: 'block' }}
 				>
-					{video.thumbnail_url ? (
-						<img
-							src={video.thumbnail_url}
-							alt={video.title}
-							style={{
-								position: 'absolute',
-								inset: 0,
-								width: '100%',
-								height: '100%',
-								objectFit: 'cover',
-								transform: hovered ? 'scale(1.04)' : 'scale(1)',
-								transition: 'transform .2s',
-							}}
-						/>
-					) : (
-						<div
-							style={{
-								position: 'absolute',
-								inset: 0,
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-							}}
-						>
-							<svg width='36' height='36' viewBox='0 0 24 24' fill='#333'>
-								<path d='M8 5v14l11-7z' />
-							</svg>
-						</div>
-					)}
-					{hovered && !menu && (
-						<div
-							style={{
-								position: 'absolute',
-								inset: 0,
-								background: 'rgba(0,0,0,.28)',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-							}}
-						>
+					<div
+						style={{
+							position: 'relative',
+							paddingBottom: '56.25%',
+							borderRadius: 10,
+							overflow: 'hidden',
+							background: '#1a1a1a',
+						}}
+					>
+						{video.thumbnail_url ? (
+							<img
+								src={video.thumbnail_url}
+								alt={video.title}
+								style={{
+									position: 'absolute',
+									inset: 0,
+									width: '100%',
+									height: '100%',
+									objectFit: 'cover',
+									transform: hovered ? 'scale(1.04)' : 'scale(1)',
+									transition: 'transform .2s',
+								}}
+							/>
+						) : (
 							<div
 								style={{
-									width: 44,
-									height: 44,
-									borderRadius: '50%',
-									background: 'rgba(230,57,70,.9)',
+									position: 'absolute',
+									inset: 0,
 									display: 'flex',
 									alignItems: 'center',
 									justifyContent: 'center',
 								}}
 							>
-								<svg width='18' height='18' viewBox='0 0 24 24' fill='#fff'>
+								<svg width='36' height='36' viewBox='0 0 24 24' fill='#333'>
 									<path d='M8 5v14l11-7z' />
 								</svg>
 							</div>
-						</div>
-					)}
-				</div>
-			</Link>
-			<div
-				style={{
-					display: 'flex',
-					gap: 10,
-					marginTop: 10,
-					alignItems: 'flex-start',
-				}}
-			>
-				<Link
-					href={`/en/channel/${video.uploader.id}`}
-					style={{ flexShrink: 0, textDecoration: 'none' }}
+						)}
+						{hovered && !menu && (
+							<div
+								style={{
+									position: 'absolute',
+									inset: 0,
+									background: 'rgba(0,0,0,.28)',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+								}}
+							>
+								<div
+									style={{
+										width: 44,
+										height: 44,
+										borderRadius: '50%',
+										background: 'rgba(230,57,70,.9)',
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'center',
+									}}
+								>
+									<svg width='18' height='18' viewBox='0 0 24 24' fill='#fff'>
+										<path d='M8 5v14l11-7z' />
+									</svg>
+								</div>
+							</div>
+						)}
+					</div>
+				</Link>
+				<div
+					style={{
+						display: 'flex',
+						gap: 10,
+						marginTop: 10,
+						alignItems: 'flex-start',
+					}}
 				>
-					{video.uploader.avatar_url ? (
-						<img
-							src={video.uploader.avatar_url}
-							style={{
-								width: 36,
-								height: 36,
-								borderRadius: '50%',
-								objectFit: 'cover',
+					<Link
+						href={`/en/channel/${video.uploader.id}`}
+						style={{ flexShrink: 0, textDecoration: 'none' }}
+					>
+						{video.uploader.avatar_url ? (
+							<img
+								src={video.uploader.avatar_url}
+								style={{
+									width: 36,
+									height: 36,
+									borderRadius: '50%',
+									objectFit: 'cover',
+								}}
+								alt=''
+							/>
+						) : (
+							<div
+								style={{
+									width: 36,
+									height: 36,
+									borderRadius: '50%',
+									background: color,
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									fontSize: 12,
+									fontWeight: 700,
+									color: '#fff',
+								}}
+							>
+								{initials}
+							</div>
+						)}
+					</Link>
+					<div style={{ flex: 1, minWidth: 0 }}>
+						<Link
+							href={`/en/watch/${video.id}`}
+							style={{ textDecoration: 'none' }}
+						>
+							<p
+								style={{
+									fontSize: 14,
+									fontWeight: 600,
+									color: '#fff',
+									lineHeight: 1.4,
+									margin: '0 0 2px',
+									display: '-webkit-box',
+									WebkitLineClamp: 2,
+									WebkitBoxOrient: 'vertical',
+									overflow: 'hidden',
+								}}
+							>
+								{video.title}
+							</p>
+						</Link>
+						<Link
+							href={`/en/channel/${video.uploader.id}`}
+							style={{ textDecoration: 'none' }}
+						>
+							<p style={{ fontSize: 13, color: '#999', margin: '0 0 1px' }}>
+								{video.uploader.username}
+							</p>
+						</Link>
+						<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+							{fmtViews(video.views_count)} views · {timeAgo(video.created_at)}
+						</p>
+					</div>
+					<div style={{ position: 'relative', flexShrink: 0 }}>
+						<button
+							onClick={e => {
+								e.preventDefault()
+								e.stopPropagation()
+								setMenu(v => !v)
 							}}
-							alt=''
-						/>
-					) : (
-						<div
 							style={{
-								width: 36,
-								height: 36,
+								width: 32,
+								height: 32,
 								borderRadius: '50%',
-								background: color,
+								background: 'none',
+								border: 'none',
+								cursor: 'pointer',
+								color: '#777',
 								display: 'flex',
 								alignItems: 'center',
 								justifyContent: 'center',
-								fontSize: 12,
-								fontWeight: 700,
-								color: '#fff',
+								opacity: hovered || menu ? 1 : 0,
+								transition: 'opacity .15s',
 							}}
+							onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
+							onMouseLeave={e => (e.currentTarget.style.background = 'none')}
 						>
-							{initials}
-						</div>
-					)}
-				</Link>
-				<div style={{ flex: 1, minWidth: 0 }}>
-					<Link
-						href={`/en/watch/${video.id}`}
-						style={{ textDecoration: 'none' }}
-					>
-						<p
-							style={{
-								fontSize: 14,
-								fontWeight: 600,
-								color: '#fff',
-								lineHeight: 1.4,
-								margin: '0 0 2px',
-								display: '-webkit-box',
-								WebkitLineClamp: 2,
-								WebkitBoxOrient: 'vertical',
-								overflow: 'hidden',
-							}}
-						>
-							{video.title}
-						</p>
-					</Link>
-					<Link
-						href={`/en/channel/${video.uploader.id}`}
-						style={{ textDecoration: 'none' }}
-					>
-						<p style={{ fontSize: 13, color: '#999', margin: '0 0 1px' }}>
-							{video.uploader.username}
-						</p>
-					</Link>
-					<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-						{fmtViews(video.views_count)} views · {timeAgo(video.created_at)}
-					</p>
-				</div>
-				<div style={{ position: 'relative', flexShrink: 0 }}>
-					<button
-						onClick={e => {
-							e.preventDefault()
-							e.stopPropagation()
-							setMenu(v => !v)
-						}}
-						style={{
-							width: 32,
-							height: 32,
-							borderRadius: '50%',
-							background: 'none',
-							border: 'none',
-							cursor: 'pointer',
-							color: '#777',
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'center',
-							opacity: hovered || menu ? 1 : 0,
-							transition: 'opacity .15s',
-						}}
-						onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
-						onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-					>
-						<svg width='16' height='16' viewBox='0 0 24 24' fill='currentColor'>
-							<circle cx='12' cy='5' r='2' />
-							<circle cx='12' cy='12' r='2' />
-							<circle cx='12' cy='19' r='2' />
-						</svg>
-					</button>
-					{menu && (
-						<KebabMenu videoId={video.id} onClose={() => setMenu(false)} />
-					)}
+							<svg
+								width='16'
+								height='16'
+								viewBox='0 0 24 24'
+								fill='currentColor'
+							>
+								<circle cx='12' cy='5' r='2' />
+								<circle cx='12' cy='12' r='2' />
+								<circle cx='12' cy='19' r='2' />
+							</svg>
+						</button>
+						{menu && (
+							<KebabMenu
+								videoId={video.id}
+								onClose={() => setMenu(false)}
+								onAddToPlaylist={() => setPlaylistOpen(true)}
+							/>
+						)}
+					</div>
 				</div>
 			</div>
-		</div>
+			{playlistOpen && (
+					<PlaylistPicker videoId={video.id} onClose={() => setPlaylistOpen(false)} />
+			)}	
+		</>
 	)
 }
 
-// ── Shorts card ───────────────────────────────────────────────────────────────
-// Uses 3:4 ratio (75% padding) instead of full 9:16 so cards aren't too tall
 function ShortsCard({ video }: { video: Video }) {
 	const [hovered, setHovered] = useState(false)
 
@@ -350,13 +375,11 @@ function ShortsCard({ video }: { video: Video }) {
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 		>
-			{/* 3:4 aspect ratio keeps cards compact while still feeling vertical */}
 			<div
 				style={{
 					position: 'relative',
-					width: '85%',
-					height: '75%',
-					paddingBottom: '133%',
+					width: '100%',
+					aspectRatio: '3 / 5',
 					borderRadius: 10,
 					overflow: 'hidden',
 					background: '#1a1a1a',
@@ -392,25 +415,6 @@ function ShortsCard({ video }: { video: Video }) {
 					</div>
 				)}
 
-				{/* SHORTS pill */}
-				<div
-					style={{
-						position: 'absolute',
-						top: 7,
-						left: 7,
-						background: 'rgba(230,57,70,0.92)',
-						color: '#fff',
-						fontSize: 9,
-						fontWeight: 800,
-						padding: '2px 6px',
-						borderRadius: 4,
-						letterSpacing: '0.4px',
-					}}
-				>
-					SHORTS
-				</div>
-
-				{/* Play overlay */}
 				{hovered && (
 					<div
 						style={{
@@ -440,7 +444,6 @@ function ShortsCard({ video }: { video: Video }) {
 					</div>
 				)}
 
-				{/* Views badge */}
 				<div
 					style={{
 						position: 'absolute',
@@ -454,7 +457,7 @@ function ShortsCard({ video }: { video: Video }) {
 						borderRadius: 5,
 					}}
 				>
-					{fmtViews(video.views_count)}
+					{fmtViews(video.views_count)} views
 				</div>
 			</div>
 
@@ -481,7 +484,6 @@ function ShortsCard({ video }: { video: Video }) {
 	)
 }
 
-// ── Shorts shelf — always exactly 5 equal columns ────────────────────────────
 function ShortsShelf({ videos }: { videos: Video[] }) {
 	return (
 		<div style={{ marginBottom: 36 }}>
@@ -494,42 +496,21 @@ function ShortsShelf({ videos }: { videos: Video[] }) {
 				}}
 			>
 				<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-					<div
-						style={{
-							width: 3,
-							height: 16,
-							background: '#e63946',
-							borderRadius: 2,
-						}}
-					/>
+					<svg width='20' height='20' viewBox='0 0 24 24' fill='red'>
+						<path d='M17.77 10.32l-1.2-.5L18 9.19C19.38 8.42 19.86 6.68 19.09 5.3c-.77-1.38-2.51-1.86-3.89-1.09l-5.85 3.28-.01.02-1.17.65c-1.38.77-1.86 2.51-1.09 3.89.28.49.68.87 1.14 1.12l1.2.5L8 13.81C6.62 14.58 6.14 16.32 6.91 17.7c.77 1.38 2.51 1.86 3.89 1.09l5.85-3.27.01-.01 1.17-.65c1.38-.77 1.86-2.51 1.09-3.89-.28-.49-.68-.87-1.15-1.14zM13 14.5l-2-1.17 2-1.16 2 1.16-2 1.17z' />
+					</svg>
 					<span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
 						Shorts
 					</span>
 				</div>
-				<Link
-					href='/en/shorts'
-					style={{
-						fontSize: 12,
-						color: '#e63946',
-						textDecoration: 'none',
-						fontWeight: 600,
-						display: 'flex',
-						alignItems: 'center',
-						gap: 3,
-					}}
-				>
-					View all
-					<svg width='13' height='13' viewBox='0 0 24 24' fill='currentColor'>
-						<path d='M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z' />
-					</svg>
-				</Link>
 			</div>
 
 			<div
 				style={{
 					display: 'grid',
-					gridTemplateColumns: 'repeat(5, 1fr)',
-					gap: 6,
+					gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+					gap: 14,
+					alignItems: 'start',
 				}}
 			>
 				{videos.map(v => (
@@ -540,7 +521,6 @@ function ShortsShelf({ videos }: { videos: Video[] }) {
 	)
 }
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
 function Skeleton() {
 	const s: React.CSSProperties = {
 		background: '#1e1e1e',
@@ -569,7 +549,6 @@ function Skeleton() {
 	)
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
 const CATS = [
 	{ v: '', l: 'All' },
 	{ v: 'music', l: '🎵 Music' },
@@ -579,21 +558,6 @@ const CATS = [
 	{ v: 'videogames', l: '🕹️ Video Games' },
 ]
 
-/**
- * Converts a flat video list into alternating normal/shorts blocks.
- *
- * Strategy:
- *  - Walk through every video in order.
- *  - Normal videos go into a running buffer.
- *  - Shorts go into a SEPARATE pending buffer — they are NEVER emitted
- *    one-by-one; they only emit as a group.
- *  - Once we have accumulated >= NORMAL_BATCH normal videos AND there are
- *    pending shorts, flush normal → flush shorts (up to 5).
- *  - At the end, flush whatever remains: normal first, then pending shorts.
- *
- * This guarantees all shorts between two normal batches always appear
- * together in a single shelf, never split across multiple rows.
- */
 function buildBlocks(items: Video[]) {
 	const NORMAL_BATCH = 12
 
@@ -619,11 +583,9 @@ function buildBlocks(items: Video[]) {
 
 	for (const v of items) {
 		if (v.video_type === 'shorts') {
-			// Just accumulate — never emit immediately
 			shortBuf.push(v)
 		} else {
 			normBuf.push(v)
-			// Only flush when we've filled a full batch AND have shorts waiting
 			if (normBuf.length >= NORMAL_BATCH && shortBuf.length > 0) {
 				flushNormal()
 				flushShorts()
@@ -631,7 +593,6 @@ function buildBlocks(items: Video[]) {
 		}
 	}
 
-	// Drain remaining items
 	flushNormal()
 	flushShorts()
 
@@ -721,7 +682,6 @@ export default function Home() {
 				@container (max-width: 860px)  { .skeleton-grid-inner { grid-template-columns: repeat(2, 1fr); } }
 			`}</style>
 
-			{/* Category chips */}
 			<div
 				style={{
 					display: 'flex',

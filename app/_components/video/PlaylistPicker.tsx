@@ -42,6 +42,9 @@ export default function PlaylistPicker({
 	const [added, setAdded] = useState<Set<string>>(new Set())
 	const [error, setError] = useState('')
 
+	// Состояние для тоста
+	const [toastMessage, setToastMessage] = useState<string | null>(null)
+
 	// Create new playlist inline
 	const [showCreate, setShowCreate] = useState(false)
 	const [newTitle, setNewTitle] = useState('')
@@ -49,6 +52,16 @@ export default function PlaylistPicker({
 		'public',
 	)
 	const [creating, setCreating] = useState(false)
+
+	// Блокировка скролла страницы
+	useEffect(() => {
+		const originalStyle = window.getComputedStyle(document.body).overflow
+		document.body.style.overflow = 'hidden'
+
+		return () => {
+			document.body.style.overflow = originalStyle
+		}
+	}, [])
 
 	useEffect(() => {
 		fetch('/api/me/playlists')
@@ -64,6 +77,11 @@ export default function PlaylistPicker({
 		if (adding) return
 		setAdding(playlistId)
 		setError('')
+
+		const currentPlaylist = playlists.find(p => p.id === playlistId)
+		const playlistName = currentPlaylist
+			? `"${currentPlaylist.title}"`
+			: 'playlist'
 
 		if (added.has(playlistId)) {
 			// Remove
@@ -84,8 +102,15 @@ export default function PlaylistPicker({
 						p.id === playlistId ? { ...p, video_count: p.video_count - 1 } : p,
 					),
 				)
+
+				// Показываем сообщение и закрываем через 1.5 секунды
+				setToastMessage(`Removed from ${playlistName}`)
+				setTimeout(() => {
+					onClose()
+				}, 1500)
 			} catch {
 				setError('Failed to remove from playlist.')
+				setAdding(null)
 			}
 		} else {
 			// Add
@@ -105,11 +130,17 @@ export default function PlaylistPicker({
 							: p,
 					),
 				)
+
+				// Показываем сообщение и закрываем через 1.5 секунды
+				setToastMessage(`Added to ${playlistName}`)
+				setTimeout(() => {
+					onClose()
+				}, 1500)
 			} catch (e) {
 				setError(e instanceof Error ? e.message : 'Failed to add to playlist.')
+				setAdding(null)
 			}
 		}
-		setAdding(null)
 	}
 
 	async function handleCreate() {
@@ -131,11 +162,13 @@ export default function PlaylistPicker({
 				...data.data.playlist,
 				video_count: 0,
 				cover_thumbnail: null,
+				visibility: newVisibility,
 			}
 			setPlaylists(prev => [newPl, ...prev])
 			setNewTitle('')
 			setShowCreate(false)
-			// Auto-add the video to the newly created playlist
+
+			// Сама функция togglePlaylist теперь отработает задержку и закроет окно
 			await togglePlaylist(newPl.id)
 		} catch (e) {
 			setError(e instanceof Error ? e.message : 'Failed to create playlist.')
@@ -148,14 +181,17 @@ export default function PlaylistPicker({
 		<div
 			style={{
 				position: 'fixed',
-				inset: 0,
-				zIndex: 2000,
-				background: 'rgba(0,0,0,0.85)',
+				top: 0,
+				left: 0,
+				width: '100vw',
+				height: '100vh',
+				zIndex: 9999,
+				background: 'rgba(0, 0, 0, 0.4)', // Умеренное фиксированное затемнение фона (без прозрачности)
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
 				padding: 20,
-				backdropFilter: 'blur(4px)',
+				boxSizing: 'border-box',
 			}}
 			onClick={e => e.target === e.currentTarget && onClose()}
 		>
@@ -167,6 +203,7 @@ export default function PlaylistPicker({
 					border: '1px solid #222',
 					borderRadius: 16,
 					overflow: 'hidden',
+					boxShadow: '0 10px 40px rgba(0, 0, 0, 0.6)',
 				}}
 			>
 				{/* Header */}
@@ -366,147 +403,38 @@ export default function PlaylistPicker({
 						{error}
 					</div>
 				)}
-
-				{/* Create new playlist inline */}
-				{showCreate ? (
-					<div
-						style={{
-							padding: '12px 20px 20px',
-							borderTop: '1px solid #1e1e1e',
-						}}
-					>
-						<input
-							value={newTitle}
-							onChange={e => setNewTitle(e.target.value)}
-							placeholder='Playlist name'
-							maxLength={100}
-							autoFocus
-							style={{
-								width: '100%',
-								padding: '10px 12px',
-								background: '#0d0d0d',
-								border: '1px solid #333',
-								borderRadius: 8,
-								color: '#fff',
-								fontSize: 13,
-								outline: 'none',
-								fontFamily: 'inherit',
-								boxSizing: 'border-box',
-								marginBottom: 10,
-							}}
-							onFocus={e => (e.currentTarget.style.borderColor = '#e63946')}
-							onBlur={e => (e.currentTarget.style.borderColor = '#333')}
-							onKeyDown={e => {
-								if (e.key === 'Enter') handleCreate()
-							}}
-						/>
-						<div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-							{(['public', 'private'] as const).map(v => (
-								<button
-									key={v}
-									onClick={() => setNewVisibility(v)}
-									style={{
-										flex: 1,
-										padding: '7px 10px',
-										borderRadius: 8,
-										border: `1px solid ${newVisibility === v ? '#e63946' : '#222'}`,
-										background:
-											newVisibility === v
-												? 'rgba(230,57,70,0.1)'
-												: 'transparent',
-										color: newVisibility === v ? '#e63946' : '#666',
-										fontSize: 12,
-										cursor: 'pointer',
-										fontFamily: 'inherit',
-									}}
-								>
-									{v === 'private' ? '🔒 ' : '🌐 '}
-									{v.charAt(0).toUpperCase() + v.slice(1)}
-								</button>
-							))}
-						</div>
-						<div style={{ display: 'flex', gap: 8 }}>
-							<button
-								onClick={() => {
-									setShowCreate(false)
-									setNewTitle('')
-								}}
-								style={{
-									flex: 1,
-									padding: '9px',
-									borderRadius: 8,
-									border: '1px solid #222',
-									background: 'transparent',
-									color: '#888',
-									fontSize: 13,
-									cursor: 'pointer',
-									fontFamily: 'inherit',
-								}}
-							>
-								Cancel
-							</button>
-							<button
-								onClick={handleCreate}
-								disabled={creating || !newTitle.trim()}
-								style={{
-									flex: 1,
-									padding: '9px',
-									borderRadius: 8,
-									background: creating || !newTitle.trim() ? '#333' : '#e63946',
-									border: 'none',
-									color: '#fff',
-									fontSize: 13,
-									fontWeight: 600,
-									cursor:
-										creating || !newTitle.trim() ? 'not-allowed' : 'pointer',
-									fontFamily: 'inherit',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									gap: 6,
-								}}
-							>
-								{creating && <Spinner />}
-								{creating ? 'Creating…' : 'Create & Add'}
-							</button>
-						</div>
-					</div>
-				) : (
-					<div style={{ padding: '12px 20px', borderTop: '1px solid #1e1e1e' }}>
-						<button
-							onClick={() => setShowCreate(true)}
-							style={{
-								display: 'flex',
-								alignItems: 'center',
-								gap: 8,
-								width: '100%',
-								padding: '10px 0',
-								background: 'none',
-								border: 'none',
-								color: '#888',
-								fontSize: 13,
-								cursor: 'pointer',
-								fontFamily: 'inherit',
-								textAlign: 'left',
-								transition: 'color 0.15s',
-							}}
-							onMouseEnter={e => (e.currentTarget.style.color = '#e63946')}
-							onMouseLeave={e => (e.currentTarget.style.color = '#888')}
-						>
-							<svg
-								width='18'
-								height='18'
-								viewBox='0 0 24 24'
-								fill='currentColor'
-							>
-								<path d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z' />
-							</svg>
-							Create new playlist
-						</button>
-					</div>
-				)}
 			</div>
-			<style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+
+			{/* Всплывающий Toast message */}
+			{toastMessage && (
+				<div
+					style={{
+						position: 'fixed',
+						bottom: 24,
+						left: '50%',
+						transform: 'translateX(-50%)',
+						background: '#e63946', // Сделал ярким в тон чекбоксам, чтобы точно заметили
+						color: '#fff',
+						padding: '12px 24px',
+						borderRadius: 8,
+						fontSize: 14,
+						fontWeight: 500,
+						boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+						zIndex: 10000,
+						animation: 'fadeIn 0.2s ease-out',
+					}}
+				>
+					{toastMessage}
+				</div>
+			)}
+
+			<style>{`
+                @keyframes spin { to { transform: rotate(360deg) } }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translate(-50%, 10px); }
+                    to { opacity: 1; transform: translate(-50%, 0); }
+                }
+            `}</style>
 		</div>
 	)
 }

@@ -630,6 +630,7 @@ export default function HistoryPage() {
 	const [comments, setComments] = useState<UserComment[]>([])
 	const [commentsLoading, setCommentsLoading] = useState(true)
 	const [deletingId, setDeletingId] = useState<string | null>(null)
+	const [clearingComments, setClearingComments] = useState(false)
 	const [commentSearch, setCommentSearch] = useState('')
 
 	const [tab, setTab] = useState<Tab>('history')
@@ -748,6 +749,26 @@ export default function HistoryPage() {
 		}
 	}
 
+	async function handleClearComments() {
+		if (!confirm('Delete all your comments?')) return
+		setClearingComments(true)
+		try {
+			const res = await fetch('/api/me/comments', {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ clear_all: true }),
+			})
+			if (!res.ok) throw new Error()
+			setComments([])
+			setCommentSearch('')
+			showToast('Comments cleared')
+		} catch {
+			showToast('Failed to clear comments', 'error')
+		} finally {
+			setClearingComments(false)
+		}
+	}
+
 	const DATE_FILTERS: { value: DateFilter; label: string }[] = [
 		{ value: 'all', label: 'All time' },
 		{ value: 'today', label: 'Today' },
@@ -777,7 +798,7 @@ export default function HistoryPage() {
 						letterSpacing: '-0.4px',
 					}}
 				>
-					Activity
+					History
 				</h1>
 				<p style={{ fontSize: 13, color: '#555', margin: 0 }}>
 					Your watch history and comments
@@ -1322,6 +1343,55 @@ export default function HistoryPage() {
 									</span>
 								)}
 							</p>
+						)}
+
+						<div style={{ flex: 1 }} />
+
+						{comments.length > 0 && (
+							<button
+								onClick={handleClearComments}
+								disabled={clearingComments}
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: 6,
+									padding: '8px 16px',
+									borderRadius: 20,
+									border: '1px solid #2a2a2a',
+									background: 'transparent',
+									color: '#888',
+									fontSize: 12,
+									fontWeight: 600,
+									cursor: clearingComments ? 'not-allowed' : 'pointer',
+									fontFamily: 'inherit',
+									transition: 'all 0.15s',
+								}}
+								onMouseEnter={e => {
+									e.currentTarget.style.borderColor = '#e63946'
+									e.currentTarget.style.color = '#e63946'
+								}}
+								onMouseLeave={e => {
+									e.currentTarget.style.borderColor = '#2a2a2a'
+									e.currentTarget.style.color = '#888'
+								}}
+							>
+								{clearingComments ? (
+									<Spinner size={12} />
+								) : (
+									<svg
+										width='13'
+										height='13'
+										viewBox='0 0 24 24'
+										fill='none'
+										stroke='currentColor'
+										strokeWidth='2'
+									>
+										<polyline points='3 6 5 6 21 6' />
+										<path d='M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6' />
+									</svg>
+								)}
+								{clearingComments ? 'Clearingâ€¦' : 'Clear all'}
+							</button>
 						)}
 					</div>
 

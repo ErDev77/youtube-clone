@@ -45,13 +45,12 @@ function fmt(n: number) {
 	return String(n)
 }
 
-function timeAgo(iso: string) {
-	const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-	if (d < 1) return 'today'
-	if (d < 7) return `${d}d ago`
-	if (d < 30) return `${Math.floor(d / 7)}w ago`
-	if (d < 365) return `${Math.floor(d / 30)}mo ago`
-	return `${Math.floor(d / 365)}y ago`
+function formatDate(iso: string) {
+	return new Date(iso).toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+	})
 }
 
 function colorFromId(id: string) {
@@ -275,7 +274,7 @@ function VideoRow({
 					</p>
 				</Link>
 				<p style={{ fontSize: 11, color: '#555', margin: 0 }}>
-					{fmt(video.views_count)} views · {timeAgo(video.created_at)}
+					{fmt(video.views_count)} views · {formatDate(video.created_at)}
 				</p>
 			</div>
 
@@ -499,20 +498,6 @@ export default function PlaylistDetailPage() {
 	const ownerName = playlist.display_name || playlist.username
 	const ownerColor = colorFromId(playlist.user_id)
 	const coverThumb = videos[0]?.thumbnail_url ?? null
-	const totalViews = videos.reduce((s, v) => s + v.views_count, 0)
-
-	// ── Stats rows — use unique label-based keys ──
-	const stats: { label: string; value: string }[] = [
-		{
-			label: 'videos',
-			value: `${playlist.video_count} ${playlist.video_count === 1 ? 'video' : 'videos'}`,
-		},
-		{ label: 'views', value: `${fmt(totalViews)} views` },
-		{
-			label: 'visibility',
-			value: playlist.visibility === 'private' ? '🔒 Private' : '🌐 Public',
-		},
-	]
 
 	return (
 		<UserLayout>
@@ -638,22 +623,32 @@ export default function PlaylistDetailPage() {
 						<span style={{ fontSize: 13, color: '#888' }}>{ownerName}</span>
 					</Link>
 
-					{/* Stats row — keyed by label to avoid duplicate key warnings */}
 					<div
 						style={{
 							display: 'flex',
-							gap: 14,
+							gap: 12,
 							marginBottom: 12,
 							flexWrap: 'wrap',
 						}}
 					>
-						{stats.map(({ label, value }) => (
-							<div key={label}>
-								<span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
-									{value}
-								</span>
-							</div>
-						))}
+						<div>
+							<span style={{ fontSize: 13, color: '#fff' }}>
+								{playlist.video_count}{' '}
+								{playlist.video_count === 1 ? 'video' : 'videos'}
+							</span>
+						</div>
+
+						<div>
+							<span style={{ fontSize: 13, color: '#fff' }}>
+								Updated {formatDate(playlist.updated_at)}
+							</span>
+						</div>
+
+						<div>
+							<span style={{ fontSize: 13, color: '#fff' }}>
+								{playlist.visibility === 'private' ? '🔒 Private' : '🌐 Public'}
+							</span>
+						</div>
 					</div>
 
 					{playlist.description && (
@@ -668,10 +663,6 @@ export default function PlaylistDetailPage() {
 							{playlist.description}
 						</p>
 					)}
-
-					<p style={{ fontSize: 11, color: '#444', margin: '0 0 20px' }}>
-						Updated {timeAgo(playlist.updated_at)}
-					</p>
 
 					{/* Play All */}
 					{videos.length > 0 && (
@@ -782,8 +773,7 @@ export default function PlaylistDetailPage() {
 								margin: 0,
 							}}
 						>
-							{playlist.video_count}{' '}
-							{playlist.video_count === 1 ? 'Video' : 'Videos'}
+							Your saved videos in playlist
 						</h2>
 						{isOwner && videos.length > 1 && (
 							<p style={{ fontSize: 11, color: '#444', margin: 0 }}>

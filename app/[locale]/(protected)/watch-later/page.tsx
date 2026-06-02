@@ -438,12 +438,7 @@ function VideoRow({
 					{fmt(video.views_count)} views · {timeAgo(video.created_at)}
 				</p>
 			</div>
-			<div style={{ flexShrink: 0, textAlign: 'right', minWidth: 64 }}>
-				<p style={{ fontSize: 11, color: '#444', margin: 0 }}>Added</p>
-				<p style={{ fontSize: 11, color: '#555', margin: 0 }}>
-					{timeAgo(video.added_at)}
-				</p>
-			</div>
+
 			<button
 				onClick={onRemove}
 				disabled={removing}
@@ -584,7 +579,6 @@ export default function WatchLaterPage() {
 		return arr
 	}, [videos, sort, search])
 
-	const totalViews = videos.reduce((s, v) => s + v.views_count, 0)
 	const coverThumb = videos[0]?.thumbnail_url ?? null
 
 	function playAll() {
@@ -843,21 +837,18 @@ export default function WatchLaterPage() {
 									String(videos.length),
 									videos.length === 1 ? 'video' : 'videos',
 								],
-								[fmt(totalViews), 'views'],
 							].map(([v, l]) => (
 								<div key={l}>
 									<span
-										style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}
+										style={{ fontSize: 13, color: '#fff' }}
 									>
 										{v}
 									</span>
-									<span style={{ fontSize: 12, color: '#666' }}> {l}</span>
+									<span style={{ fontSize: 12, color: '#fff' }}> {l}</span>
 								</div>
+								
 							))}
 						</div>
-						<p style={{ fontSize: 11, color: '#444', margin: '0 0 20px' }}>
-							Your saved videos to watch later
-						</p>
 						<button
 							onClick={playAll}
 							style={{
@@ -964,7 +955,7 @@ export default function WatchLaterPage() {
 									flex: 1,
 								}}
 							>
-								{processed.length} {processed.length === 1 ? 'Video' : 'Videos'}
+								Your saved videos to watch later
 								{search && (
 									<span
 										style={{

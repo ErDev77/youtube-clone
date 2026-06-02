@@ -719,7 +719,7 @@ export default function ManageVideosPage() {
 						letterSpacing: '-0.4px',
 					}}
 				>
-					Manage Videos
+					Your Videos
 				</h1>
 				<p style={{ fontSize: 13, color: '#555', margin: 0 }}>
 					{loading
@@ -771,7 +771,7 @@ export default function ManageVideosPage() {
 					<div
 						style={{
 							display: 'grid',
-							gridTemplateColumns: '2fr 100px 110px 70px 90px 80px',
+							gridTemplateColumns: '3fr 120px 140px 90px 110px 90px',
 							padding: '11px 20px',
 							background: '#0f0f0f',
 							borderBottom: '1px solid #1a1a1a',
@@ -800,7 +800,7 @@ export default function ManageVideosPage() {
 							className='video-row'
 							style={{
 								display: 'grid',
-								gridTemplateColumns: '2fr 100px 110px 70px 90px 80px',
+								gridTemplateColumns: '3fr 120px 140px 90px 110px 90px',
 								padding: '14px 20px',
 								alignItems: 'center',
 								borderBottom:
@@ -821,8 +821,8 @@ export default function ManageVideosPage() {
 							>
 								<div
 									style={{
-										width: 72,
-										height: 42,
+										width: 82,
+										height: 48,
 										flexShrink: 0,
 										borderRadius: 6,
 										overflow: 'hidden',

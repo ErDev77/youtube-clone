@@ -44,3 +44,31 @@ export async function GET() {
 		)
 	}
 }
+
+export async function DELETE(req: Request) {
+	try {
+		const session = await requireSession()
+		const { video_id } = await req.json()
+
+		if (!video_id) {
+			return NextResponse.json(
+				{ ok: false, error: 'video_id is required.' },
+				{ status: 400 },
+			)
+		}
+
+		await pool.query(
+			`DELETE FROM video_reactions WHERE user_id = $1 AND video_id = $2 AND action = 'like'`,
+			[session.userId, video_id],
+		)
+
+		return NextResponse.json({ ok: true, data: { removed: true } })
+	} catch (err) {
+		if (err instanceof Response) return err
+		console.error('[DELETE /api/me/liked]', err)
+		return NextResponse.json(
+			{ ok: false, error: 'Internal server error' },
+			{ status: 500 },
+		)
+	}
+}
