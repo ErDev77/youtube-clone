@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { useAuthContext } from '@/context/AuthContext'
 import UserLayout from '@/app/_components/layout/UserLayout'
 import CommentsSection from '@/app/_components/comment/CommentsSection'
+import { useLanguage } from '@/context/LanguageContext'
+import { useTranslations } from '@/translations/translations'
 
 /* ─── Types ─── */
 type Short = {
@@ -49,18 +51,69 @@ function fmt(n: number) {
 	return String(n)
 }
 
-function timeAgo(iso: string) {
-	const ms = Date.now() - new Date(iso).getTime()
-	const m = Math.floor(ms / 60000)
-	if (m < 1) return 'just now'
-	if (m < 60) return `${m}m ago`
-	const h = Math.floor(m / 60)
-	if (h < 24) return `${h}h ago`
-	const d = Math.floor(h / 24)
-	if (d < 7) return `${d}d ago`
-	if (d < 30) return `${Math.floor(d / 7)}w ago`
-	if (d < 365) return `${Math.floor(d / 30)}mo ago`
-	return `${Math.floor(d / 365)}y ago`
+function timeAgo(iso: string, t: any, language: string) {
+	const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+
+	if (s < 60) return t.justNow
+
+	const getWord = (num: number, key: string) => {
+		const val = t[key]
+		if (language === 'ru' && Array.isArray(val)) {
+			const abs = Math.abs(num) % 100
+			const n = abs % 10
+			if (abs > 10 && abs < 20) return val[2]
+			if (n > 1 && n < 5) return val[1]
+			if (n === 1) return val[0]
+			return val[2]
+		}
+		return val || ''
+	}
+
+	// 1. Минуты
+	if (s < 3600) {
+		const num = Math.floor(s / 60)
+		let unit = getWord(num, 'minute')
+		if (language === 'en' && num === 1) unit = 'minute'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 2. Часы
+	if (s < 86400) {
+		const num = Math.floor(s / 3600)
+		let unit = getWord(num, 'hour')
+		if (language === 'en' && num === 1) unit = 'hour'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 3. Дни
+	const d = Math.floor(s / 86400)
+	if (d < 7) {
+		let unit = getWord(d, 'day')
+		if (language === 'en' && d === 1) unit = 'day'
+		return `${d} ${unit} ${t.ago}`
+	}
+
+	// 4. Недели
+	if (d < 30) {
+		const num = Math.floor(d / 7)
+		let unit = getWord(num, 'week')
+		if (language === 'en' && num === 1) unit = 'week'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 5. Месяцы
+	if (d < 365) {
+		const num = Math.floor(d / 30)
+		let unit = getWord(num, 'month')
+		if (language === 'en' && num === 1) unit = 'month'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 6. Года
+	const num = Math.floor(d / 365)
+	let unit = getWord(num, 'year')
+	if (language === 'en' && num === 1) unit = 'year'
+	return `${num} ${unit} ${t.ago}`
 }
 
 function colorFromId(id: string) {
@@ -493,7 +546,8 @@ function ShortItem({
 	const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
 		undefined,
 	)
-
+	const { language } = useLanguage()
+	const t = useTranslations()
 	const name = short.uploader.display_name || short.uploader.username
 	const avatarColor = colorFromId(short.uploader.id)
 	/* Intersection observer */
@@ -922,7 +976,7 @@ function ShortItem({
 							}}
 						>
 							<Link
-								href={`/en/channel/${short.uploader.id}`}
+								href={`/${language}/channel/${short.uploader.id}`}
 								style={{
 									textDecoration: 'none',
 									display: 'flex',
@@ -997,7 +1051,7 @@ function ShortItem({
 										(e.currentTarget.style.background = 'transparent')
 									}
 								>
-									{subLoading ? '…' : 'Subscribe'}
+									{subLoading ? '…' : t.subscribe}
 								</button>
 							) : (
 								<span
@@ -1010,7 +1064,7 @@ function ShortItem({
 										fontWeight: 600,
 									}}
 								>
-									Subscribed
+									{t.subscribed}
 								</span>
 							)}
 						</div>
@@ -1067,7 +1121,7 @@ function ShortItem({
 								margin: 0,
 							}}
 						>
-							{fmt(short.views_count)} views · {timeAgo(short.created_at)}
+							{fmt(short.views_count)} {t.viewsText} · {timeAgo(short.created_at, t, language)}
 						</p>
 					</div>
 				</div>
@@ -1677,7 +1731,7 @@ export default function ShortsPage() {
 								Upload a Short to get started
 							</p>
 							<Link
-								href='/en'
+								href='/${language}/'
 								style={{
 									marginTop: 8,
 									padding: '10px 24px',

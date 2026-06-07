@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuthContext } from '@/context/AuthContext'
+import { useTranslations } from '@/translations/translations'
 
 type ProfileData = {
 	avatar_url: string | null
@@ -15,7 +16,7 @@ export default function UserMenu() {
 	const [open, setOpen] = useState(false)
 	const [profile, setProfile] = useState<ProfileData | null>(null)
 	const menuRef = useRef<HTMLDivElement>(null)
-
+	const t = useTranslations()
 	useEffect(() => {
 		function handler(e: MouseEvent) {
 			if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -70,7 +71,7 @@ export default function UserMenu() {
 						textDecoration: 'none',
 					}}
 				>
-					Sign in
+					{t.signIn}
 				</Link>
 				<Link
 					href='/en/register'
@@ -84,7 +85,7 @@ export default function UserMenu() {
 						textDecoration: 'none',
 					}}
 				>
-					Join
+					{t.join}
 				</Link>
 			</div>
 		)
@@ -225,7 +226,7 @@ export default function UserMenu() {
 						{[
 							{
 								href: `/en/channel/${user.id}`,
-								label: 'Your Channel',
+								label: t.yourChannel,
 								icon: (
 									<svg
 										width='15'
@@ -239,7 +240,7 @@ export default function UserMenu() {
 							},
 							{
 								href: '/en/settings',
-								label: 'Settings',
+								label: t.settings,
 								icon: (
 									<svg
 										width='15'
@@ -319,7 +320,7 @@ export default function UserMenu() {
 							>
 								<path d='M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z' />
 							</svg>
-							Sign out
+							{t.signOut}
 						</button>
 					</div>
 				</div>

@@ -6,6 +6,8 @@ import Link from 'next/link'
 import UserLayout from '@/app/_components/layout/UserLayout'
 import { useAuthContext } from '@/context/AuthContext'
 import PlaylistPicker from '@/app/_components/video/PlaylistPicker'
+import { useLanguage } from '@/context/LanguageContext'
+import { useTranslations } from '@/translations/translations'
 
 /* ─── Types ─── */
 type User = {
@@ -55,17 +57,71 @@ function fmtViews(n: number): string {
 	return fmt(n)
 }
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, t: any, language: string) {
 	const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-	if (s < 60) return 'just now'
-	if (s < 3600) return Math.floor(s / 60) + 'm ago'
-	if (s < 86400) return Math.floor(s / 3600) + 'h ago'
+
+	if (s < 60) return t.justNow
+
+	const getWord = (num: number, key: string) => {
+		const val = t[key]
+		if (language === 'ru' && Array.isArray(val)) {
+			const abs = Math.abs(num) % 100
+			const n = abs % 10
+			if (abs > 10 && abs < 20) return val[2]
+			if (n > 1 && n < 5) return val[1]
+			if (n === 1) return val[0]
+			return val[2]
+		}
+		return val || ''
+	}
+
+	// 1. Минуты
+	if (s < 3600) {
+		const num = Math.floor(s / 60)
+		let unit = getWord(num, 'minute')
+		if (language === 'en' && num === 1) unit = 'minute'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 2. Часы
+	if (s < 86400) {
+		const num = Math.floor(s / 3600)
+		let unit = getWord(num, 'hour')
+		if (language === 'en' && num === 1) unit = 'hour'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 3. Дни
 	const d = Math.floor(s / 86400)
-	if (d < 7) return d + 'd ago'
-	if (d < 30) return Math.floor(d / 7) + 'w ago'
-	if (d < 365) return Math.floor(d / 30) + 'mo ago'
-	return Math.floor(d / 365) + 'y ago'
+	if (d < 7) {
+		let unit = getWord(d, 'day')
+		if (language === 'en' && d === 1) unit = 'day'
+		return `${d} ${unit} ${t.ago}`
+	}
+
+	// 4. Недели
+	if (d < 30) {
+		const num = Math.floor(d / 7)
+		let unit = getWord(num, 'week')
+		if (language === 'en' && num === 1) unit = 'week'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 5. Месяцы
+	if (d < 365) {
+		const num = Math.floor(d / 30)
+		let unit = getWord(num, 'month')
+		if (language === 'en' && num === 1) unit = 'month'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 6. Года
+	const num = Math.floor(d / 365)
+	let unit = getWord(num, 'year')
+	if (language === 'en' && num === 1) unit = 'year'
+	return `${num} ${unit} ${t.ago}`
 }
+
 
 function getInitials(name: string): string {
 	return name.slice(0, 2).toUpperCase()
@@ -124,7 +180,8 @@ function KebabMenu({
 	onAddToPlaylist: () => void
 }) {
 	const ref = useRef<HTMLDivElement>(null)
-
+	const { language } = useLanguage()
+	const t = useTranslations()
 	useEffect(() => {
 		const fn = (e: MouseEvent) => {
 			if (ref.current && !ref.current.contains(e.target as Node)) onClose()
@@ -135,7 +192,7 @@ function KebabMenu({
 
 	const actions = [
 		{
-			label: 'Save to Watch Later',
+			label: t.watchLater,
 			icon: 'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z',
 			onClick: async (e: React.MouseEvent) => {
 				e.preventDefault()
@@ -149,7 +206,7 @@ function KebabMenu({
 			},
 		},
 		{
-			label: 'Add to Playlist',
+			label: t.addToPlaylist,
 			icon: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
 			onClick: (e: React.MouseEvent) => {
 				e.preventDefault()
@@ -159,13 +216,13 @@ function KebabMenu({
 			},
 		},
 		{
-			label: 'Copy link',
-			icon: 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z',
+			label: t.copyLink,
+			icon: 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2。z',
 			onClick: (e: React.MouseEvent) => {
 				e.preventDefault()
 				e.stopPropagation()
 				navigator.clipboard
-					?.writeText(`${window.location.origin}/en/watch/${videoId}`)
+					?.writeText(`${window.location.origin}/${language}/watch/${videoId}`)
 					.catch(() => {})
 				onClose()
 			},
@@ -229,7 +286,8 @@ function VideoCard({ video, channelUser }: { video: Video; channelUser: User }) 
 	const uploader = video.uploader ?? { id: channelUser.id, username: channelUser.display_name?.trim() || channelUser.username, avatar_url: channelUser.avatar_url }
 	const color = colorFromId(uploader.id)
 	const initials = uploader.username.slice(0, 2).toUpperCase()
-
+	const t = useTranslations()
+	const { language } = useLanguage()
 	return (
 		<>
 		<div
@@ -238,7 +296,7 @@ function VideoCard({ video, channelUser }: { video: Video; channelUser: User }) 
 			style={{ position: 'relative' }}
 		>
 			<Link
-				href={`/en/watch/${video.id}`}
+				href={`/${language}/watch/${video.id}`}
 				style={{ textDecoration: 'none', display: 'block' }}
 			>
 				<div
@@ -320,7 +378,7 @@ function VideoCard({ video, channelUser }: { video: Video; channelUser: User }) 
 				}}
 			>
 				<Link
-					href={`/en/channel/${uploader.id}`}
+					href={`/${language}/channel/${uploader.id}`}
 					style={{ flexShrink: 0, textDecoration: 'none' }}
 				>
 					{uploader.avatar_url ? (
@@ -356,7 +414,7 @@ function VideoCard({ video, channelUser }: { video: Video; channelUser: User }) 
 
 				<div style={{ flex: 1, minWidth: 0 }}>
 					<Link
-						href={`/en/watch/${video.id}`}
+						href={`/${language}/watch/${video.id}`}
 						style={{ textDecoration: 'none' }}
 					>
 						<p
@@ -376,7 +434,7 @@ function VideoCard({ video, channelUser }: { video: Video; channelUser: User }) 
 						</p>
 					</Link>
 					<Link
-						href={`/en/channel/${uploader.id}`}
+						href={`/${language}/channel/${uploader.id}`}
 						style={{ textDecoration: 'none' }}
 					>
 						<p style={{ fontSize: 13, color: '#999', margin: '0 0 1px' }}>
@@ -384,7 +442,7 @@ function VideoCard({ video, channelUser }: { video: Video; channelUser: User }) 
 						</p>
 					</Link>
 					<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-						{fmtViews(video.views_count)} views · {timeAgo(video.created_at)}
+						{fmtViews(video.views_count)} views · {timeAgo(video.created_at, t, language)}
 					</p>
 				</div>
 
@@ -441,10 +499,11 @@ function VideoCard({ video, channelUser }: { video: Video; channelUser: User }) 
 /* ─── ShortsCard ─── */
 function ShortsCard({ video }: { video: Video }) {
 	const [hovered, setHovered] = useState(false)
-
+	const t = useTranslations()
+	const { language } = useLanguage()
 	return (
 		<Link
-			href={`/en/watch/${video.id}`}
+			href={`/${language}/watch/${video.id}`}
 			style={{ textDecoration: 'none', display: 'block', minWidth: 0 }}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
@@ -531,7 +590,7 @@ function ShortsCard({ video }: { video: Video }) {
 						borderRadius: 5,
 					}}
 				>
-					{fmtViews(video.views_count)} views
+					{fmtViews(video.views_count)} {t.viewsText}
 				</div>
 			</div>
 
@@ -552,7 +611,7 @@ function ShortsCard({ video }: { video: Video }) {
 				{video.title}
 			</p>
 			<p style={{ fontSize: 11, color: '#666', margin: 0 }}>
-				{timeAgo(video.created_at)}
+				{timeAgo(video.created_at, t, language)}
 			</p>
 		</Link>
 	)
@@ -561,9 +620,12 @@ function ShortsCard({ video }: { video: Video }) {
 /* ─── PlaylistCard ─── */
 function PlaylistCard({ playlist }: { playlist: Playlist }) {
 	const [hovered, setHovered] = useState(false)
+	const t = useTranslations()
+	const { language } = useLanguage()
+
 	return (
 		<Link
-			href={`/en/playlists/${playlist.id}`}
+			href={`/${language}/playlists/${playlist.id}`}
 			style={{ textDecoration: 'none', display: 'block' }}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
@@ -696,7 +758,7 @@ function PlaylistCard({ playlist }: { playlist: Playlist }) {
 				</p>
 			)}
 			<p style={{ fontSize: 11, color: '#555', margin: 0 }}>
-				Updated {timeAgo(playlist.updated_at)}
+				Updated {timeAgo(playlist.updated_at, t, language)}
 			</p>
 		</Link>
 	)
@@ -724,7 +786,7 @@ function EditModal({
 	const [error, setError] = useState('')
 	const avatarRef = useRef<HTMLInputElement>(null)
 	const bannerRef = useRef<HTMLInputElement>(null)
-
+	const t = useTranslations()
 	function handleImageSelect(
 		e: React.ChangeEvent<HTMLInputElement>,
 		type: 'avatar' | 'banner',
@@ -827,7 +889,7 @@ function EditModal({
 					<h2
 						style={{ fontSize: 17, fontWeight: 700, color: '#fff', margin: 0 }}
 					>
-						Edit Profile
+						{t.editProfile}
 					</h2>
 					<button
 						onClick={onClose}
@@ -867,7 +929,7 @@ function EditModal({
 								display: 'block',
 							}}
 						>
-							Channel Banner
+							{t.channelBanner}
 							<span
 								style={{
 									marginLeft: 8,
@@ -878,7 +940,7 @@ function EditModal({
 									letterSpacing: 0,
 								}}
 							>
-								Recommended: 1280×350px
+								{t.bannerRecommended}
 							</span>
 						</label>
 						<div
@@ -924,9 +986,9 @@ function EditModal({
 										<circle cx='8.5' cy='8.5' r='1.5' />
 										<path d='M21 15l-5-5L5 21' />
 									</svg>
-									<p style={{ fontSize: 12, margin: 0 }}>Upload banner</p>
+									<p style={{ fontSize: 12, margin: 0 }}>{t.uploadBanner}</p>
 									<p style={{ fontSize: 10, margin: '4px 0 0', color: '#444' }}>
-										JPG or PNG · Max quality at 1280×350
+										{t.bannerHint}
 									</p>
 								</div>
 							)}
@@ -1013,10 +1075,10 @@ function EditModal({
 									margin: '0 0 2px',
 								}}
 							>
-								Profile Photo
+								{t.profilePhoto}
 							</p>
 							<p style={{ fontSize: 12, color: '#555', margin: 0 }}>
-								JPG, PNG · Click to upload
+								{t.avatarHint}
 							</p>
 						</div>
 						<input
@@ -1041,7 +1103,7 @@ function EditModal({
 								display: 'block',
 							}}
 						>
-							Display Name
+							{t.displayName}
 						</label>
 						<input
 							value={displayName}
@@ -1066,7 +1128,7 @@ function EditModal({
 								display: 'block',
 							}}
 						>
-							Bio
+							{t.bio}
 						</label>
 						<textarea
 							value={bio}
@@ -1118,7 +1180,7 @@ function EditModal({
 								cursor: 'pointer',
 							}}
 						>
-							Cancel
+							{t.cancel}
 						</button>
 						<button
 							onClick={handleSave}
@@ -1150,7 +1212,7 @@ function EditModal({
 									}}
 								/>
 							)}
-							{saving ? 'Saving…' : 'Save Changes'}
+							{saving ? t.saving : t.saveChanges}
 						</button>
 					</div>
 				</div>
@@ -1175,7 +1237,7 @@ export default function ChannelPage() {
 	const [subscribed, setSubscribed] = useState(false)
 	const [subscribersCount, setSubscribersCount] = useState(0)
 	const [subLoading, setSubLoading] = useState(false)
-
+	const t = useTranslations()
 	const isOwner = currentUser?.id === params.userId
 	const totalViews = videos.reduce((sum, v) => sum + (v.views_count || 0), 0)
 
@@ -1414,7 +1476,7 @@ export default function ChannelPage() {
 								<span style={{ color: '#ccc', fontWeight: 600 }}>
 									{fmt(subscribersCount)}
 								</span>{' '}
-								subscriber{subscribersCount !== 1 ? 's' : ''}
+								{t.subscriberCount(subscribersCount)}
 							</span>
 							<span
 								style={{
@@ -1429,13 +1491,18 @@ export default function ChannelPage() {
 								<span style={{ color: '#ccc', fontWeight: 600 }}>
 									{videos.length}
 								</span>{' '}
-								video{videos.length !== 1 ? 's' : ''}
+								{t.videoCount(videos.length)}
 							</span>
 						</div>
 					</div>
 
 					<div
-						style={{ display: 'flex', gap: 8, paddingBottom: 26, flexShrink: 0 }}
+						style={{
+							display: 'flex',
+							gap: 8,
+							paddingBottom: 26,
+							flexShrink: 0,
+						}}
 					>
 						{isOwner ? (
 							<>
@@ -1474,7 +1541,7 @@ export default function ChannelPage() {
 										<path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
 										<path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
 									</svg>
-									Edit Profile
+									{t.editProfile}
 								</button>
 								<a
 									href='/en/manage-videos'
@@ -1510,7 +1577,7 @@ export default function ChannelPage() {
 									>
 										<path d='M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z' />
 									</svg>
-									Manage Videos
+									{t.manageVideos}
 								</a>
 							</>
 						) : (
@@ -1530,7 +1597,11 @@ export default function ChannelPage() {
 									transition: 'all 0.15s',
 								}}
 							>
-								{subLoading ? '…' : subscribed ? '✓ Subscribed' : 'Subscribe'}
+								{subLoading
+									? t.loading
+									: subscribed
+										? t.subscribed
+										: t.subscribe}
 							</button>
 						)}
 					</div>
@@ -1570,7 +1641,6 @@ export default function ChannelPage() {
 
 				{/* ── Content ── */}
 				<div key={tab} style={{ animation: 'fadeUp 0.25s ease both' }}>
-
 					{/* Videos tab */}
 					{tab === 'videos' &&
 						(regularVideos.length === 0 ? (
@@ -1594,11 +1664,11 @@ export default function ChannelPage() {
 									<path d='M8 21h8M12 17v4' />
 								</svg>
 								<p style={{ fontSize: 15, color: '#666', marginBottom: 4 }}>
-									No videos yet
+									{t.noVideosYet}
 								</p>
 								{isOwner && (
 									<p style={{ fontSize: 13, color: '#444' }}>
-										Upload your first video using the Upload button in the header
+										{t.uploadFirstVideo}
 									</p>
 								)}
 							</div>
@@ -1616,7 +1686,7 @@ export default function ChannelPage() {
 					{tab === 'shorts' &&
 						(shorts.length === 0 ? (
 							<div style={{ textAlign: 'center', padding: '60px 20px' }}>
-								<p style={{ fontSize: 15, color: '#666' }}>No shorts yet</p>
+								<p style={{ fontSize: 15, color: '#666' }}>{t.noShortsYet}</p>
 							</div>
 						) : (
 							<div className='ch-shorts-grid'>
@@ -1674,14 +1744,14 @@ export default function ChannelPage() {
 							<div style={{ textAlign: 'center', padding: '60px 20px' }}>
 								<div style={{ fontSize: 40, marginBottom: 14 }}>🎵</div>
 								<p style={{ fontSize: 15, color: '#666', marginBottom: 4 }}>
-									{isOwner ? 'No playlists yet' : 'No public playlists'}
+									{isOwner ? t.noPlaylistsYet : t.noPublicPlaylists}
 								</p>
 								{isOwner && (
 									<>
 										<p
 											style={{ fontSize: 13, color: '#444', marginBottom: 16 }}
 										>
-											Create your first playlist to organise your videos.
+											{t.createFirstPlaylist}
 										</p>
 										<a
 											href='/en/playlists'
@@ -1698,7 +1768,7 @@ export default function ChannelPage() {
 												textDecoration: 'none',
 											}}
 										>
-											Go to Playlists
+											{t.goToPlaylists}
 										</a>
 									</>
 								)}
@@ -1731,7 +1801,7 @@ export default function ChannelPage() {
 										marginBottom: 12,
 									}}
 								>
-									About
+									{t.bio}
 								</h3>
 								<p
 									style={{
@@ -1745,7 +1815,7 @@ export default function ChannelPage() {
 										user.bio
 									) : (
 										<span style={{ color: '#444', fontStyle: 'italic' }}>
-											No bio yet.
+											{t.noBioYet}
 										</span>
 									)}
 								</p>
@@ -1761,16 +1831,16 @@ export default function ChannelPage() {
 										marginBottom: 12,
 									}}
 								>
-									Details
+									{t.details}
 								</h3>
 								<div
 									style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
 								>
 									{[
-										['Videos', String(videos.length)],
-										['Subscribers', fmt(subscribersCount)],
-										['Total views', fmt(totalViews)],
-										['Joined', formatDate(user.created_at)],
+										[t.videos, String(videos.length)],
+										[t.subscribers, fmt(subscribersCount)],
+										[t.totalViews, fmt(totalViews)],
+										[t.joined, formatDate(user.created_at)],
 									].map(([label, value]) => (
 										<div
 											key={label}

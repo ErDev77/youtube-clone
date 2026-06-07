@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import UserLayout from '../_components/layout/UserLayout'
 import PlaylistPicker from '../_components/video/PlaylistPicker'
+import { useTranslations } from '@/translations/translations'
+import { useLanguage } from '@/context/LanguageContext'
 
 type Video = {
 	id: string
@@ -26,17 +28,71 @@ function fmtViews(n: number) {
 	return String(n)
 }
 
-function timeAgo(iso: string) {
+function timeAgo(iso: string, t: any, language: string) {
 	const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-	if (s < 60) return 'just now'
-	if (s < 3600) return Math.floor(s / 60) + 'm ago'
-	if (s < 86400) return Math.floor(s / 3600) + 'h ago'
+
+	if (s < 60) return t.justNow
+
+	const getWord = (num: number, key: string) => {
+		const val = t[key]
+		if (language === 'ru' && Array.isArray(val)) {
+			const abs = Math.abs(num) % 100
+			const n = abs % 10
+			if (abs > 10 && abs < 20) return val[2]
+			if (n > 1 && n < 5) return val[1]
+			if (n === 1) return val[0]
+			return val[2]
+		}
+		return val || ''
+	}
+
+	// 1. Минуты
+	if (s < 3600) {
+		const num = Math.floor(s / 60)
+		let unit = getWord(num, 'minute')
+		if (language === 'en' && num === 1) unit = 'minute'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 2. Часы
+	if (s < 86400) {
+		const num = Math.floor(s / 3600)
+		let unit = getWord(num, 'hour')
+		if (language === 'en' && num === 1) unit = 'hour'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 3. Дни
 	const d = Math.floor(s / 86400)
-	if (d < 7) return d + 'd ago'
-	if (d < 30) return Math.floor(d / 7) + 'w ago'
-	if (d < 365) return Math.floor(d / 30) + 'mo ago'
-	return Math.floor(d / 365) + 'y ago'
+	if (d < 7) {
+		let unit = getWord(d, 'day')
+		if (language === 'en' && d === 1) unit = 'day'
+		return `${d} ${unit} ${t.ago}`
+	}
+
+	// 4. Недели
+	if (d < 30) {
+		const num = Math.floor(d / 7)
+		let unit = getWord(num, 'week')
+		if (language === 'en' && num === 1) unit = 'week'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 5. Месяцы
+	if (d < 365) {
+		const num = Math.floor(d / 30)
+		let unit = getWord(num, 'month')
+		if (language === 'en' && num === 1) unit = 'month'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 6. Года
+	const num = Math.floor(d / 365)
+	let unit = getWord(num, 'year')
+	if (language === 'en' && num === 1) unit = 'year'
+	return `${num} ${unit} ${t.ago}`
 }
+
 
 function avatarColor(id: string) {
 	const c = ['#e63946', '#2a9d8f', '#e76f51', '#457b9d', '#6a4c93', '#f4a261']
@@ -56,6 +112,7 @@ function KebabMenu({
 	onAddToPlaylist: () => void
 }) {
 	const ref = useRef<HTMLDivElement>(null)
+	const t = useTranslations()
 	useEffect(() => {
 		const fn = (e: MouseEvent) => {
 			if (ref.current && !ref.current.contains(e.target as Node)) onClose()
@@ -66,7 +123,7 @@ function KebabMenu({
 
 	const actions = [
 		{
-			label: 'Save to Watch Later',
+			label: t.watchLater,
 			icon: 'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z',
 			onClick: async (e: React.MouseEvent) => {
 				e.preventDefault()
@@ -80,7 +137,7 @@ function KebabMenu({
 			},
 		},
 		{
-			label: 'Add to Playlist',
+			label: t.addToPlaylist,
 			icon: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
 			onClick: (e: React.MouseEvent) => {
 				e.preventDefault()
@@ -90,7 +147,7 @@ function KebabMenu({
 			},
 		},
 		{
-			label: 'Copy link',
+			label: t.copyLink,
 			icon: 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z',
 			onClick: (e: React.MouseEvent) => {
 				e.preventDefault()
@@ -158,7 +215,9 @@ function VideoCard({ video }: { video: Video }) {
 	const color = avatarColor(video.uploader.id)
 	const initials = video.uploader.username.slice(0, 2).toUpperCase()
 	const [playlistOpen, setPlaylistOpen] = useState(false)
-
+	const t = useTranslations()
+	const { language } = useLanguage()
+	
 	return (
 		<>
 			<div
@@ -310,7 +369,7 @@ function VideoCard({ video }: { video: Video }) {
 							</p>
 						</Link>
 						<p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-							{fmtViews(video.views_count)} views · {timeAgo(video.created_at)}
+							{fmtViews(video.views_count)} views · {timeAgo(video.created_at, t, language)}
 						</p>
 					</div>
 					<div style={{ position: 'relative', flexShrink: 0 }}>
@@ -367,7 +426,7 @@ function VideoCard({ video }: { video: Video }) {
 
 function ShortsCard({ video }: { video: Video }) {
 	const [hovered, setHovered] = useState(false)
-
+	const t = useTranslations()
 	return (
 		<Link
 			href='/en/shorts'
@@ -457,7 +516,7 @@ function ShortsCard({ video }: { video: Video }) {
 						borderRadius: 5,
 					}}
 				>
-					{fmtViews(video.views_count)} views
+					{fmtViews(video.views_count)} {t.viewsText}
 				</div>
 			</div>
 
@@ -549,14 +608,7 @@ function Skeleton() {
 	)
 }
 
-const CATS = [
-	{ v: '', l: 'All' },
-	{ v: 'music', l: '🎵 Music' },
-	{ v: 'streams', l: '🎮 Streams' },
-	{ v: 'news', l: '📰 News' },
-	{ v: 'sport', l: '⚽ Sport' },
-	{ v: 'videogames', l: '🕹️ Video Games' },
-]
+
 
 function buildBlocks(items: Video[]) {
 	const NORMAL_BATCH = 12
@@ -606,7 +658,8 @@ export default function Home() {
 	const [cat, setCat] = useState('')
 	const sentinel = useRef<HTMLDivElement>(null)
 	const observer = useRef<IntersectionObserver | null>(null)
-
+	const t = useTranslations()
+	
 	const load = useCallback(
 		async (category: string, cursor?: string | null): Promise<Feed | null> => {
 			const p = new URLSearchParams()
@@ -657,6 +710,15 @@ export default function Home() {
 	}, [feed, loadingMore, cat, load])
 
 	const blocks = feed ? buildBlocks(feed.items) : []
+
+	const CATS = [
+		{ v: '', l: t.categoryAll },
+		{ v: 'music', l: `🎵 ${t.categoryMusic}` },
+		{ v: 'streams', l: `🔴 ${t.categoryStreaming}` },
+		{ v: 'news', l: `📰 ${t.categoryNews}` },
+		{ v: 'sport', l: `⚽ ${t.categorySports}` },
+		{ v: 'videogames', l: `🎮 ${t.categoryGaming}` },
+	]
 
 	return (
 		<UserLayout>

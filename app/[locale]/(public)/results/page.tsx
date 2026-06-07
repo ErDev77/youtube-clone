@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import UserLayout from '@/app/_components/layout/UserLayout'
 import PlaylistPicker from '@/app/_components/video/PlaylistPicker'
+import { useLanguage } from '@/context/LanguageContext'
+import { useTranslations } from '@/translations/translations'
 
 /* ─── Types ─── */
 type VideoResult = {
@@ -27,12 +29,14 @@ type VideoResult = {
 }
 
 type ChannelResult = {
-  id: string
-  username: string
-  display_name: string | null
-  avatar_url: string | null
-  bio: string | null
-  created_at: string
+	id: string
+	username: string
+	display_name: string | null
+	avatar_url: string | null
+	bio: string | null
+	created_at: string
+	subscribers_count?: number
+	videos_count?: number
 }
 
 type FilterType = 'all' | 'video' | 'shorts' | 'channel'
@@ -54,16 +58,69 @@ function fmt(n: number) {
   return String(n)
 }
 
-function timeAgo(iso: string) {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 60) return 'just now'
-  if (s < 3600) return Math.floor(s / 60) + 'm ago'
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
-  const d = Math.floor(s / 86400)
-  if (d < 7) return d + 'd ago'
-  if (d < 30) return Math.floor(d / 7) + 'w ago'
-  if (d < 365) return Math.floor(d / 30) + 'mo ago'
-  return Math.floor(d / 365) + 'y ago'
+function timeAgo(iso: string, t: any, language: string) {
+	const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+
+	if (s < 60) return t.justNow
+
+	const getWord = (num: number, key: string) => {
+		const val = t[key]
+		if (language === 'ru' && Array.isArray(val)) {
+			const abs = Math.abs(num) % 100
+			const n = abs % 10
+			if (abs > 10 && abs < 20) return val[2]
+			if (n > 1 && n < 5) return val[1]
+			if (n === 1) return val[0]
+			return val[2]
+		}
+		return val || ''
+	}
+
+	// 1. Минуты
+	if (s < 3600) {
+		const num = Math.floor(s / 60)
+		let unit = getWord(num, 'minute')
+		if (language === 'en' && num === 1) unit = 'minute'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 2. Часы
+	if (s < 86400) {
+		const num = Math.floor(s / 3600)
+		let unit = getWord(num, 'hour')
+		if (language === 'en' && num === 1) unit = 'hour'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 3. Дни
+	const d = Math.floor(s / 86400)
+	if (d < 7) {
+		let unit = getWord(d, 'day')
+		if (language === 'en' && d === 1) unit = 'day'
+		return `${d} ${unit} ${t.ago}`
+	}
+
+	// 4. Недели
+	if (d < 30) {
+		const num = Math.floor(d / 7)
+		let unit = getWord(num, 'week')
+		if (language === 'en' && num === 1) unit = 'week'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 5. Месяцы
+	if (d < 365) {
+		const num = Math.floor(d / 30)
+		let unit = getWord(num, 'month')
+		if (language === 'en' && num === 1) unit = 'month'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 6. Года
+	const num = Math.floor(d / 365)
+	let unit = getWord(num, 'year')
+	if (language === 'en' && num === 1) unit = 'year'
+	return `${num} ${unit} ${t.ago}`
 }
 
 function colorFromId(id: string) {
@@ -84,6 +141,7 @@ function matchesDateFilter(iso: string, date: FilterDate): boolean {
   if (date === 'year') return diff < 365 * 86400000
   return true
 }
+
 
 /* ─── Filter Modal ─── */
 function FilterModal({
@@ -176,6 +234,7 @@ function FilterModal({
     local.date !== 'any',
     local.sort !== 'relevant',
   ].filter(Boolean).length
+  const t = useTranslations()
 
   return (
     <div
@@ -218,7 +277,7 @@ function FilterModal({
               <line x1='8' y1='12' x2='16' y2='12' />
               <line x1='11' y1='18' x2='13' y2='18' />
             </svg>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>Search Filters</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{t.filterModalTitle}</span>
             {activeCount > 0 && (
               <span style={{
                 fontSize: 11,
@@ -257,32 +316,32 @@ function FilterModal({
 
         {/* Body */}
         <div style={{ padding: '20px 22px' }}>
-          {section('Type', <>
-            {chip('All', local.type === 'all', () => set('type', 'all'))}
-            {chip('Video', local.type === 'video', () => set('type', 'video'))}
+          {section(t.filterSectionType, <>
+            {chip(t.filterAll, local.type === 'all', () => set('type', 'all'))}
+            {chip(t.filterVideo, local.type === 'video', () => set('type', 'video'))}
             {chip('Shorts', local.type === 'shorts', () => set('type', 'shorts'))}
-            {chip('Channels', local.type === 'channel', () => set('type', 'channel'))}
+            {chip(t.filterChannels, local.type === 'channel', () => set('type', 'channel'))}
           </>)}
 
-          {local.type !== 'channel' && section('Duration', <>
-            {chip('Any duration', local.duration === 'any', () => set('duration', 'any'))}
-            {chip('Under 3 min', local.duration === 'short', () => set('duration', 'short'))}
-            {chip('3–20 min', local.duration === 'medium', () => set('duration', 'medium'))}
-            {chip('Over 20 min', local.duration === 'long', () => set('duration', 'long'))}
+          {local.type !== 'channel' && section(t.filterSectionDuration, <>
+            {chip(t.filterAnyDuration, local.duration === 'any', () => set('duration', 'any'))}
+            {chip(t.filterUnder3m, local.duration === 'short', () => set('duration', 'short'))}
+            {chip(t.filter3to20m, local.duration === 'medium', () => set('duration', 'medium'))}
+            {chip(t.filterOver20m, local.duration === 'long', () => set('duration', 'long'))}
           </>)}
 
-          {section('Upload date', <>
-            {chip('Any time', local.date === 'any', () => set('date', 'any'))}
-            {chip('Today', local.date === 'today', () => set('date', 'today'))}
-            {chip('This week', local.date === 'week', () => set('date', 'week'))}
-            {chip('This month', local.date === 'month', () => set('date', 'month'))}
-            {chip('This year', local.date === 'year', () => set('date', 'year'))}
+          {section(t.filterSectionDate, <>
+            {chip(t.filterAnyTime, local.date === 'any', () => set('date', 'any'))}
+            {chip(t.filterToday, local.date === 'today', () => set('date', 'today'))}
+            {chip(t.filterThisWeek, local.date === 'week', () => set('date', 'week'))}
+            {chip(t.filterThisMonth, local.date === 'month', () => set('date', 'month'))}
+            {chip(t.filterThisYear, local.date === 'year', () => set('date', 'year'))}
           </>)}
 
-          {section('Sort by', <>
-            {chip('Relevant', local.sort === 'relevant', () => set('sort', 'relevant'))}
-            {chip('Most popular', local.sort === 'popular', () => set('sort', 'popular'))}
-            {chip('Newest first', local.sort === 'newest', () => set('sort', 'newest'))}
+          {section(t.filterSectionSort, <>
+            {chip(t.filterRelevant, local.sort === 'relevant', () => set('sort', 'relevant'))}
+            {chip(t.filterPopular, local.sort === 'popular', () => set('sort', 'popular'))}
+            {chip(t.filterNewest, local.sort === 'newest', () => set('sort', 'newest'))}
           </>)}
         </div>
 
@@ -316,7 +375,7 @@ function FilterModal({
               e.currentTarget.style.color = '#666'
             }}
           >
-            Reset all
+            {t.filterResetBtn}
           </button>
           <button
             onClick={handleApply}
@@ -335,7 +394,7 @@ function FilterModal({
             onMouseEnter={e => (e.currentTarget.style.background = '#c62e3b')}
             onMouseLeave={e => (e.currentTarget.style.background = '#e63946')}
           >
-            Apply filters
+            {t.filterApplyBtn}
           </button>
         </div>
       </div>
@@ -346,6 +405,7 @@ function FilterModal({
 /* ─── Shorts card ─── */
 function ShortsCard({ video }: { video: VideoResult }) {
   const [hovered, setHovered] = useState(false)
+  const t = useTranslations()
 
   return (
     <Link
@@ -400,7 +460,7 @@ function ShortsCard({ video }: { video: VideoResult }) {
           background: 'rgba(0,0,0,.72)', color: '#fff',
           fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 5,
         }}>
-          {fmt(video.views_count)} views
+          {fmt(video.views_count)} {t.viewsText}
         </div>
       </div>
       <p style={{
@@ -429,6 +489,8 @@ function VideoRow({
   const name = video.uploader.display_name || video.uploader.username
   const color = colorFromId(video.uploader.id)
   const menuRef = useRef<HTMLDivElement>(null)
+  const t = useTranslations()
+  const { language } = useLanguage()
 
   useEffect(() => {
     if (!menuOpen) return
@@ -440,167 +502,296 @@ function VideoRow({
   }, [menuOpen])
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex', gap: 14, alignItems: 'flex-start',
-        padding: '10px', borderRadius: 12,
-        background: hovered ? '#0f0f0f' : 'transparent',
-        border: `1px solid ${hovered ? '#1a1a1a' : 'transparent'}`,
-        transition: 'all 0.15s', cursor: 'default',
-      }}
-    >
-      {/* Thumbnail */}
-      <Link href={`/en/watch/${video.id}`} style={{ textDecoration: 'none', flexShrink: 0 }}>
-        <div style={{
-          width: 280, height: 157,
-          borderRadius: 10, overflow: 'hidden',
-          background: '#1a1a1a', position: 'relative',
-        }}>
-          {video.thumbnail_url ? (
-            <img
-              src={video.thumbnail_url}
-              alt={video.title}
-              style={{
-                width: '100%', height: '100%', objectFit: 'cover',
-                transform: hovered ? 'scale(1.03)' : 'scale(1)',
-                transition: 'transform .2s',
-              }}
-            />
-          ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width='32' height='32' viewBox='0 0 24 24' fill='#333'><path d='M8 5v14l11-7z' /></svg>
-            </div>
-          )}
-          {hovered && (
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'rgba(0,0,0,0.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: '50%',
-                background: 'rgba(230,57,70,0.9)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <svg width='18' height='18' viewBox='0 0 24 24' fill='#fff'><path d='M8 5v14l11-7z' /></svg>
-              </div>
-            </div>
-          )}
-        </div>
-      </Link>
+		<div
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+			style={{
+				display: 'flex',
+				gap: 14,
+				alignItems: 'flex-start',
+				padding: '10px',
+				borderRadius: 12,
+				background: hovered ? '#0f0f0f' : 'transparent',
+				border: `1px solid ${hovered ? '#1a1a1a' : 'transparent'}`,
+				transition: 'all 0.15s',
+				cursor: 'default',
+			}}
+		>
+			{/* Thumbnail */}
+			<Link
+				href={`/en/watch/${video.id}`}
+				style={{ textDecoration: 'none', flexShrink: 0 }}
+			>
+				<div
+					style={{
+						width: 280,
+						height: 157,
+						borderRadius: 10,
+						overflow: 'hidden',
+						background: '#1a1a1a',
+						position: 'relative',
+					}}
+				>
+					{video.thumbnail_url ? (
+						<img
+							src={video.thumbnail_url}
+							alt={video.title}
+							style={{
+								width: '100%',
+								height: '100%',
+								objectFit: 'cover',
+								transform: hovered ? 'scale(1.03)' : 'scale(1)',
+								transition: 'transform .2s',
+							}}
+						/>
+					) : (
+						<div
+							style={{
+								width: '100%',
+								height: '100%',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+							}}
+						>
+							<svg width='32' height='32' viewBox='0 0 24 24' fill='#333'>
+								<path d='M8 5v14l11-7z' />
+							</svg>
+						</div>
+					)}
+					{hovered && (
+						<div
+							style={{
+								position: 'absolute',
+								inset: 0,
+								background: 'rgba(0,0,0,0.25)',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+							}}
+						>
+							<div
+								style={{
+									width: 44,
+									height: 44,
+									borderRadius: '50%',
+									background: 'rgba(230,57,70,0.9)',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+								}}
+							>
+								<svg width='18' height='18' viewBox='0 0 24 24' fill='#fff'>
+									<path d='M8 5v14l11-7z' />
+								</svg>
+							</div>
+						</div>
+					)}
+				</div>
+			</Link>
 
-      {/* Info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Link href={`/en/watch/${video.id}`} style={{ textDecoration: 'none' }}>
-          <h3 style={{
-            fontSize: 16, fontWeight: 700, color: '#fff',
-            margin: '0 0 6px', lineHeight: 1.4,
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-          }}>{video.title}</h3>
-        </Link>
+			{/* Info */}
+			<div style={{ flex: 1, minWidth: 0 }}>
+				<Link href={`/en/watch/${video.id}`} style={{ textDecoration: 'none' }}>
+					<h3
+						style={{
+							fontSize: 16,
+							fontWeight: 700,
+							color: '#fff',
+							margin: '0 0 6px',
+							lineHeight: 1.4,
+							display: '-webkit-box',
+							WebkitLineClamp: 2,
+							WebkitBoxOrient: 'vertical',
+							overflow: 'hidden',
+						}}
+					>
+						{video.title}
+					</h3>
+				</Link>
 
-        <p style={{ fontSize: 13, color: '#666', margin: '0 0 10px' }}>
-          {fmt(video.views_count)} views · {timeAgo(video.created_at)}
-        </p>
+				<p style={{ fontSize: 13, color: '#666', margin: '0 0 10px' }}>
+					{fmt(video.views_count)} {t.viewsText} · {timeAgo(video.created_at, t, language)}
+				</p>
 
-        <Link href={`/en/channel/${video.uploader.id}`} style={{ textDecoration: 'none' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            {video.uploader.avatar_url ? (
-              <img src={video.uploader.avatar_url} alt={name} style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{
-                width: 24, height: 24, borderRadius: '50%',
-                background: color, display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff',
-              }}>
-                {name.slice(0, 2).toUpperCase()}
-              </div>
-            )}
-            <span style={{ fontSize: 13, color: '#888' }}>{name}</span>
-          </div>
-        </Link>
+				<Link
+					href={`/en/channel/${video.uploader.id}`}
+					style={{ textDecoration: 'none' }}
+				>
+					<div
+						style={{
+							display: 'flex',
+							alignItems: 'center',
+							gap: 8,
+							marginBottom: 10,
+						}}
+					>
+						{video.uploader.avatar_url ? (
+							<img
+								src={video.uploader.avatar_url}
+								alt={name}
+								style={{
+									width: 24,
+									height: 24,
+									borderRadius: '50%',
+									objectFit: 'cover',
+								}}
+							/>
+						) : (
+							<div
+								style={{
+									width: 24,
+									height: 24,
+									borderRadius: '50%',
+									background: color,
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									fontSize: 9,
+									fontWeight: 700,
+									color: '#fff',
+								}}
+							>
+								{name.slice(0, 2).toUpperCase()}
+							</div>
+						)}
+						<span style={{ fontSize: 13, color: '#888' }}>{name}</span>
+					</div>
+				</Link>
 
-        {video.description && (
-          <p style={{
-            fontSize: 13, color: '#555', margin: 0, lineHeight: 1.6,
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          }}>
-            {video.description}
-          </p>
-        )}
-      </div>
+				{video.description && (
+					<p
+						style={{
+							fontSize: 13,
+							color: '#555',
+							margin: 0,
+							lineHeight: 1.6,
+							display: '-webkit-box',
+							WebkitLineClamp: 2,
+							WebkitBoxOrient: 'vertical',
+							overflow: 'hidden',
+						}}
+					>
+						{video.description}
+					</p>
+				)}
+			</div>
 
-      {/* Kebab */}
-      <div style={{ position: 'relative', flexShrink: 0 }}>
-        <button
-          onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
-          style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'none', border: 'none',
-            cursor: 'pointer', color: '#777',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            opacity: hovered || menuOpen ? 1 : 0,
-            transition: 'opacity .15s, background .15s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        >
-          <svg width='16' height='16' viewBox='0 0 24 24' fill='currentColor'>
-            <circle cx='12' cy='5' r='2' /><circle cx='12' cy='12' r='2' /><circle cx='12' cy='19' r='2' />
-          </svg>
-        </button>
-        {menuOpen && (
-          <div ref={menuRef} style={{
-            position: 'absolute', top: '100%', right: 0, zIndex: 300,
-            background: '#1c1c1c', border: '1px solid #2a2a2a',
-            borderRadius: 10, minWidth: 186, overflow: 'hidden',
-            boxShadow: '0 8px 28px rgba(0,0,0,0.7)',
-            animation: 'pop .12s ease',
-          }}>
-            {[
-              {
-                label: 'Save to Watch Later',
-                icon: 'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z',
-                action: async () => {
-                  await fetch('/api/me/watch-later', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ video_id: video.id }) }).catch(() => {})
-                  setMenuOpen(false)
-                },
-              },
-              {
-                label: 'Add to Playlist',
-                icon: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
-                action: () => { onAddToPlaylist(video.id); setMenuOpen(false) },
-              },
-              {
-                label: 'Copy link',
-                icon: 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z',
-                action: () => { navigator.clipboard?.writeText(`${window.location.origin}/en/watch/${video.id}`).catch(() => {}); setMenuOpen(false) },
-              },
-            ].map(item => (
-              <button
-                key={item.label}
-                onClick={item.action}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  width: '100%', padding: '10px 14px',
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#ccc', fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#252525')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >
-                <svg width='16' height='16' viewBox='0 0 24 24' fill='#666'><path d={item.icon} /></svg>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+			{/* Kebab */}
+			<div style={{ position: 'relative', flexShrink: 0 }}>
+				<button
+					onClick={e => {
+						e.preventDefault()
+						e.stopPropagation()
+						setMenuOpen(v => !v)
+					}}
+					style={{
+						width: 32,
+						height: 32,
+						borderRadius: '50%',
+						background: 'none',
+						border: 'none',
+						cursor: 'pointer',
+						color: '#777',
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'center',
+						opacity: hovered || menuOpen ? 1 : 0,
+						transition: 'opacity .15s, background .15s',
+					}}
+					onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
+					onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+				>
+					<svg width='16' height='16' viewBox='0 0 24 24' fill='currentColor'>
+						<circle cx='12' cy='5' r='2' />
+						<circle cx='12' cy='12' r='2' />
+						<circle cx='12' cy='19' r='2' />
+					</svg>
+				</button>
+				{menuOpen && (
+					<div
+						ref={menuRef}
+						style={{
+							position: 'absolute',
+							top: '100%',
+							right: 0,
+							zIndex: 300,
+							background: '#1c1c1c',
+							border: '1px solid #2a2a2a',
+							borderRadius: 10,
+							minWidth: 186,
+							overflow: 'hidden',
+							boxShadow: '0 8px 28px rgba(0,0,0,0.7)',
+							animation: 'pop .12s ease',
+						}}
+					>
+						{[
+							{
+								label: t.saveToWatchLater,
+								icon: 'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z',
+								action: async () => {
+									await fetch('/api/me/watch-later', {
+										method: 'POST',
+										headers: { 'Content-Type': 'application/json' },
+										body: JSON.stringify({ video_id: video.id }),
+									}).catch(() => {})
+									setMenuOpen(false)
+								},
+							},
+							{
+								label: t.addToPlaylist,
+								icon: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
+								action: () => {
+									onAddToPlaylist(video.id)
+									setMenuOpen(false)
+								},
+							},
+							{
+								label: t.copyLink,
+								icon: 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2。92s2。92-1。31 2。92-2。92-1。31-2。92-2。92-2。92z',
+								action: () => {
+									navigator.clipboard
+										?.writeText(
+											`${window.location.origin}/en/watch/${video.id}`,
+										)
+										.catch(() => {})
+									setMenuOpen(false)
+								},
+							},
+						].map(item => (
+							<button
+								key={item.label}
+								onClick={item.action}
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: 10,
+									width: '100%',
+									padding: '10px 14px',
+									background: 'none',
+									border: 'none',
+									cursor: 'pointer',
+									color: '#ccc',
+									fontSize: 13,
+									fontFamily: 'inherit',
+									textAlign: 'left',
+								}}
+								onMouseEnter={e =>
+									(e.currentTarget.style.background = '#252525')
+								}
+								onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+							>
+								<svg width='16' height='16' viewBox='0 0 24 24' fill='#666'>
+									<path d={item.icon} />
+								</svg>
+								{item.label}
+							</button>
+						))}
+					</div>
+				)}
+			</div>
+		</div>
+	)
 }
 
 /* ─── Channel row card ─── */
@@ -608,56 +799,112 @@ function ChannelRow({ channel }: { channel: ChannelResult }) {
   const [hovered, setHovered] = useState(false)
   const color = colorFromId(channel.id)
   const name = channel.display_name || channel.username
-
+  const t = useTranslations()
   return (
-    <Link
-      href={`/en/channel/${channel.id}`}
-      style={{ textDecoration: 'none' }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 18,
-        padding: '16px', borderRadius: 14,
-        background: hovered ? '#0f0f0f' : 'transparent',
-        border: `1px solid ${hovered ? '#1a1a1a' : 'transparent'}`,
-        transition: 'all 0.15s',
-      }}>
-        {channel.avatar_url ? (
-          <img src={channel.avatar_url} alt={name} style={{ width: 70, height: 70, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-        ) : (
-          <div style={{
-            width: 70, height: 70, borderRadius: '50%', background: color,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 24, fontWeight: 800, color: '#fff', flexShrink: 0,
-          }}>
-            {name.slice(0, 2).toUpperCase()}
-          </div>
-        )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 16, fontWeight: 700, color: '#fff', margin: '0 0 2px' }}>{name}</p>
-          <p style={{ fontSize: 13, color: '#666', margin: '0 0 6px' }}>@{channel.username}</p>
-          {channel.bio && (
-            <p style={{
-              fontSize: 13, color: '#555', margin: 0, lineHeight: 1.5,
-              display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}>
-              {channel.bio}
-            </p>
-          )}
-        </div>
-        <div style={{
-          padding: '8px 20px', borderRadius: 24,
-          border: '1px solid #2a2a2a',
-          color: '#ccc', fontSize: 13, fontWeight: 600,
-          transition: 'all 0.15s',
-          ...(hovered ? { borderColor: '#e63946', color: '#e63946', background: 'rgba(230,57,70,0.08)' } : {}),
-        }}>
-          View channel
-        </div>
-      </div>
-    </Link>
-  )
+		<Link
+			href={`/en/channel/${channel.id}`}
+			style={{ textDecoration: 'none' }}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+		>
+			<div
+				style={{
+					display: 'flex',
+					alignItems: 'center',
+					gap: 18,
+					padding: '16px',
+					borderRadius: 14,
+					background: hovered ? '#0f0f0f' : 'transparent',
+					border: `1px solid ${hovered ? '#1a1a1a' : 'transparent'}`,
+					transition: 'all 0.15s',
+				}}
+			>
+				{channel.avatar_url ? (
+					<img
+						src={channel.avatar_url}
+						alt={name}
+						style={{
+							width: 70,
+							height: 70,
+							borderRadius: '50%',
+							objectFit: 'cover',
+							flexShrink: 0,
+						}}
+					/>
+				) : (
+					<div
+						style={{
+							width: 70,
+							height: 70,
+							borderRadius: '50%',
+							background: color,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+							fontSize: 24,
+							fontWeight: 800,
+							color: '#fff',
+							flexShrink: 0,
+						}}
+					>
+						{name.slice(0, 2).toUpperCase()}
+					</div>
+				)}
+				<div style={{ flex: 1, minWidth: 0 }}>
+					<p
+						style={{
+							fontSize: 16,
+							fontWeight: 700,
+							color: '#fff',
+							margin: '0 0 2px',
+						}}
+					>
+						{name}
+					</p>
+					<p style={{ fontSize: 13, color: '#666', margin: '0 0 6px' }}>
+						@{channel.username} · {fmt(channel.subscribers_count || 0)}{' '}
+						{t.subscribers} · {fmt(channel.videos_count || 0)} {t.videos}
+					</p>
+					{channel.bio && (
+						<p
+							style={{
+								fontSize: 13,
+								color: '#555',
+								margin: 0,
+								lineHeight: 1.5,
+								display: '-webkit-box',
+								WebkitLineClamp: 1,
+								WebkitBoxOrient: 'vertical',
+								overflow: 'hidden',
+							}}
+						>
+							{channel.bio}
+						</p>
+					)}
+				</div>
+				<div
+					style={{
+						padding: '8px 20px',
+						borderRadius: 24,
+						border: '1px solid #2a2a2a',
+						color: '#ccc',
+						fontSize: 13,
+						fontWeight: 600,
+						transition: 'all 0.15s',
+						...(hovered
+							? {
+									borderColor: '#e63946',
+									color: '#e63946',
+									background: 'rgba(230,57,70,0.08)',
+								}
+							: {}),
+					}}
+				>
+					View channel
+				</div>
+			</div>
+		</Link>
+	)
 }
 
 /* ─── Skeleton ─── */
@@ -692,7 +939,8 @@ export default function ResultsPage() {
   const [filters, setFilters] = useState<Filters>({ type: 'all', duration: 'any', date: 'any', sort: 'relevant' })
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [playlistVideoId, setPlaylistVideoId] = useState<string | null>(null)
-
+  const t = useTranslations()
+	const { language } = useLanguage()
   /* Fetch results */
   useEffect(() => {
     if (!q.trim()) return
@@ -785,13 +1033,13 @@ export default function ResultsPage() {
         <div>
           {q ? (
             <>
-              <p style={{ fontSize: 13, color: '#555', margin: '0 0 2px' }}>Search results for</p>
+              <p style={{ fontSize: 13, color: '#555', margin: '0 0 2px' }}>{t.searchResultsFor}</p>
               <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.3px' }}>
                 &ldquo;{q}&rdquo;
               </h1>
             </>
           ) : (
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0 }}>Search</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0 }}>{t.searchTitle}</h1>
           )}
         </div>
 
@@ -826,7 +1074,7 @@ export default function ResultsPage() {
               <line x1='8' y1='12' x2='16' y2='12' />
               <line x1='11' y1='18' x2='13' y2='18' />
             </svg>
-            Filters
+            {t.filtersBtn}
             {activeFilterCount > 0 && (
               <span style={{
                 width: 18, height: 18, borderRadius: '50%',
@@ -924,11 +1172,7 @@ export default function ResultsPage() {
           {showChannels && allChannels.length > 0 && (
             <section style={{ marginBottom: 36 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <svg width='18' height='18' viewBox='0 0 24 24' fill='#666'>
-                  <path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z' />
-                </svg>
                 <h2 style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: 0 }}>Channels</h2>
-                <span style={{ fontSize: 13, color: '#444' }}>{allChannels.length}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {allChannels.map(c => <ChannelRow key={c.id} channel={c} />)}

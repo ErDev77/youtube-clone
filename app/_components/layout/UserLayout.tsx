@@ -41,79 +41,11 @@ type Notification = {
    SIDEBAR DATA
 ───────────────────────────────────────────────────────────────────────────── */
 
-const mainNav = [
-	{
-		href: '/en',
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' />
-			</svg>
-		),
-		label: 'Home',
-	},
-	{
-		href: '/en/shorts',
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M17.77 10.32l-1.2-.5L18 9.19C19.38 8.42 19.86 6.68 19.09 5.3c-.77-1.38-2.51-1.86-3.89-1.09l-5.85 3.28-.01.02-1.17.65c-1.38.77-1.86 2.51-1.09 3.89.28.49.68.87 1.14 1.12l1.2.5L8 13.81C6.62 14.58 6.14 16.32 6.91 17.7c.77 1.38 2.51 1.86 3.89 1.09l5.85-3.27.01-.01 1.17-.65c1.38-.77 1.86-2.51 1.09-3.89-.28-.49-.68-.87-1.15-1.14zM13 14.5l-2-1.17 2-1.16 2 1.16-2 1.17z' />
-			</svg>
-		),
-		label: 'Shorts',
-	},
-]
-
-const youSection = [
-	{
-		href: '/en/history',
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z' />
-			</svg>
-		),
-		label: 'History',
-	},
-	{
-		href: '/en/playlists',
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z' />
-			</svg>
-		),
-		label: 'Playlists',
-	},
-	{
-		href: '/en/watch-later',
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M22 13h-4v4h-2v-4h-4v-2h4V7h2v4h4v2zm-8-6H2v1.5h12V7zM2 16.5h8V15H2v1.5zm0-4.5h10v-1.5H2V12z' />
-			</svg>
-		),
-		label: 'Watch Later',
-	},
-	{
-		href: '/en/liked',
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1.91l-.01-.01L23 10z' />
-			</svg>
-		),
-		label: 'Liked',
-	},
-	{
-		href: '/en/manage-videos',
-		icon: (
-			<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
-				<path d='M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z' />
-			</svg>
-		),
-		label: 'Your Videos',
-	},
-]
 
 const languages = [
-	{ code: 'am', label: 'Հայերեն', flag: 'https://flagcdn.com/w20/am.png' },
+	{ code: 'hy', label: 'Հայերեն', flag: 'https://flagcdn.com/w20/am.png' },
 	{ code: 'ru', label: 'Русский', flag: 'https://flagcdn.com/w20/ru.png' },
-	{ code: 'gb', label: 'English', flag: 'https://flagcdn.com/w20/gb.png' },
+	{ code: 'en', label: 'English', flag: 'https://flagcdn.com/w20/gb.png' },
 ]
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -134,19 +66,69 @@ function colorFromId(id: string): string {
 	return colors[Math.abs(hash) % colors.length]
 }
 
-function timeAgo(iso: string) {
-	const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-	if (d < 1) {
-		const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000)
-		if (h < 1) {
-			const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-			return m < 1 ? 'just now' : `${m}m ago`
+function timeAgo(iso: string, t: any, language: string) {
+	const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+
+	if (s < 60) return t.justNow
+
+	const getWord = (num: number, key: string) => {
+		const val = t[key]
+		if (language === 'ru' && Array.isArray(val)) {
+			const abs = Math.abs(num) % 100
+			const n = abs % 10
+			if (abs > 10 && abs < 20) return val[2]
+			if (n > 1 && n < 5) return val[1]
+			if (n === 1) return val[0]
+			return val[2]
 		}
-		return `${h}h ago`
+		return val || ''
 	}
-	if (d < 7) return `${d}d ago`
-	if (d < 30) return `${Math.floor(d / 7)}w ago`
-	return `${Math.floor(d / 30)}mo ago`
+
+	// 1. Минуты
+	if (s < 3600) {
+		const num = Math.floor(s / 60)
+		let unit = getWord(num, 'minute')
+		if (language === 'en' && num === 1) unit = 'minute'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 2. Часы
+	if (s < 86400) {
+		const num = Math.floor(s / 3600)
+		let unit = getWord(num, 'hour')
+		if (language === 'en' && num === 1) unit = 'hour'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 3. Дни
+	const d = Math.floor(s / 86400)
+	if (d < 7) {
+		let unit = getWord(d, 'day')
+		if (language === 'en' && d === 1) unit = 'day'
+		return `${d} ${unit} ${t.ago}`
+	}
+
+	// 4. Недели
+	if (d < 30) {
+		const num = Math.floor(d / 7)
+		let unit = getWord(num, 'week')
+		if (language === 'en' && num === 1) unit = 'week'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 5. Месяцы
+	if (d < 365) {
+		const num = Math.floor(d / 30)
+		let unit = getWord(num, 'month')
+		if (language === 'en' && num === 1) unit = 'month'
+		return `${num} ${unit} ${t.ago}`
+	}
+
+	// 6. Года
+	const num = Math.floor(d / 365)
+	let unit = getWord(num, 'year')
+	if (language === 'en' && num === 1) unit = 'year'
+	return `${num} ${unit} ${t.ago}`
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -161,7 +143,8 @@ function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
 	const [loading, setLoading] = useState(false)
 	const [fetched, setFetched] = useState(false)
 	const menuRef = useRef<HTMLDivElement>(null)
-
+	const { language } = useLanguage()
+	const t = useTranslations()
 	// Close on outside click
 	useEffect(() => {
 		function handler(e: MouseEvent) {
@@ -243,7 +226,7 @@ function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
 			return (
 				<>
 					<span style={{ fontWeight: 600, color: '#fff' }}>{actor}</span>
-					{' liked your video '}
+					{` ${t.likedYourVideo} `}
 					{n.video_title && (
 						<span style={{ fontWeight: 600, color: '#e63946' }}>
 							&ldquo;{n.video_title}&rdquo;
@@ -255,13 +238,13 @@ function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
 			return (
 				<>
 					<span style={{ fontWeight: 600, color: '#fff' }}>{actor}</span>
-					{' subscribed to your channel'}
+					{` ${t.subscribedToChannel}`}
 				</>
 			)
 		return (
 			<>
 				<span style={{ fontWeight: 600, color: '#fff' }}>{actor}</span>
-				{' uploaded a new video '}
+				{` ${t.uploadedNewVideo} `}
 				{n.video_title && (
 					<span style={{ fontWeight: 600, color: '#e63946' }}>
 						&ldquo;{n.video_title}&rdquo;
@@ -374,7 +357,7 @@ function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
 					>
 						<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 							<span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
-								Notifications
+								{t.notificationsTitle}
 							</span>
 							{unreadCount > 0 && (
 								<span
@@ -388,7 +371,7 @@ function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
 										border: '1px solid rgba(230,57,70,0.3)',
 									}}
 								>
-									{unreadCount} new
+									{unreadCount} {t.newBadge}
 								</span>
 							)}
 						</div>
@@ -412,7 +395,7 @@ function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
 								}
 								onMouseLeave={e => (e.currentTarget.style.background = 'none')}
 							>
-								Mark all read
+								{t.markAllRead}
 							</button>
 						)}
 					</div>
@@ -481,7 +464,7 @@ function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
 										margin: 0,
 									}}
 								>
-									No notifications yet
+									{t.noNotifications}
 								</p>
 								<p
 									style={{
@@ -492,9 +475,7 @@ function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
 										lineHeight: 1.5,
 									}}
 								>
-									You&apos;ll see likes, new subscribers,
-									<br />
-									and videos from channels you follow here.
+									{t.noNotificationsSub}
 								</p>
 							</div>
 						) : (
@@ -610,7 +591,7 @@ function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
 												{notificationText(n)}
 											</p>
 											<p style={{ fontSize: 11, color: '#555', margin: 0 }}>
-												{timeAgo(n.created_at)}
+												{timeAgo(n.created_at, t, language)}
 											</p>
 										</div>
 
@@ -853,13 +834,41 @@ export default function UserLayout({
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const [searchQuery, setSearchQuery] = useState(searchParams?.get('q') || '')
-
+	const [suggestions, setSuggestions] = useState<string[]>([])
+	const [showSuggestions, setShowSuggestions] = useState(false)
+	const [activeSuggestion, setActiveSuggestion] = useState(-1)
+	const suggestionsRef = useRef<HTMLDivElement>(null)
+	const suggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const [subscribedChannels, setSubscribedChannels] = useState<
 		SubscribedChannel[]
 	>([])
 	const t = useTranslations()
 	const { language } = useLanguage()
 	const { user, isAuthenticated } = useAuthContext()
+	const [isListening, setIsListening] = useState(false)
+	const recognitionRef = useRef<any>(null)
+	
+const handleLanguageChange = (langCode: string) => {
+	if (langCode === language) return
+
+	const segments = pathname.split('/')
+
+	const validLanguageCodes = languages.map(l => l.code) // Напр: ['en', 'ru', 'hy', 'am']
+
+	if (validLanguageCodes.includes(segments[1])) {
+		segments[1] = langCode
+	} else {
+		segments.splice(1, 0, langCode)
+	}
+
+	const newPath = segments.join('/')
+
+	const currentParams = searchParams?.toString()
+	const finalUrl = currentParams ? `${newPath}?${currentParams}` : newPath
+
+	setLangOpen(false)
+	router.push(finalUrl)
+}
 
 	useEffect(() => {
 		if (!isAuthenticated) {
@@ -881,6 +890,62 @@ export default function UserLayout({
 			router.push(`/en/results?q=${encodeURIComponent(searchQuery.trim())}`)
 		}
 	}
+
+		const fetchSuggestions = useCallback((value: string) => {
+			if (suggestDebounceRef.current) clearTimeout(suggestDebounceRef.current)
+			if (!value.trim() || value.trim().length < 2) {
+				setSuggestions([])
+				setShowSuggestions(false)
+				return
+			}
+			suggestDebounceRef.current = setTimeout(async () => {
+				try {
+					const res = await fetch(
+						`/api/videos/suggestions?q=${encodeURIComponent(value.trim())}`,
+					)
+					const data = await res.json()
+					if (data.ok && Array.isArray(data.data)) {
+						setSuggestions(data.data.slice(0, 8))
+						setShowSuggestions(data.data.length > 0)
+					}
+				} catch {
+					setSuggestions([])
+					setShowSuggestions(false)
+				}
+			}, 200)
+		}, [])
+
+		const handleSearchChange = (value: string) => {
+			setSearchQuery(value)
+			setActiveSuggestion(-1)
+			fetchSuggestions(value)
+		}
+
+		const handleSuggestionClick = (suggestion: string) => {
+			setSearchQuery(suggestion)
+			setShowSuggestions(false)
+			router.push(`/en/results?q=${encodeURIComponent(suggestion)}`)
+		}
+
+		const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+			if (!showSuggestions || suggestions.length === 0) return
+			if (e.key === 'ArrowDown') {
+				e.preventDefault()
+				setActiveSuggestion(prev =>
+					prev < suggestions.length - 1 ? prev + 1 : prev,
+				)
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault()
+				setActiveSuggestion(prev => (prev > 0 ? prev - 1 : -1))
+			} else if (e.key === 'Enter' && activeSuggestion >= 0) {
+				e.preventDefault()
+				handleSuggestionClick(suggestions[activeSuggestion])
+			} else if (e.key === 'Escape') {
+				setShowSuggestions(false)
+				setActiveSuggestion(-1)
+			}
+		}
+	
 	useEffect(() => {
 		setSearchQuery(searchParams?.get('q') || '')
 	}, [searchParams])
@@ -888,6 +953,151 @@ export default function UserLayout({
 	const handleUploadSuccess = () => {
 		window.location.reload()
 	}
+
+	const startVoiceSearch = () => {
+		if (typeof window === 'undefined') return
+
+		const SpeechRecognition =
+			(window as any).SpeechRecognition ||
+			(window as any).webkitSpeechRecognition
+
+		if (!SpeechRecognition) {
+			alert('Voice search is not supported in this browser')
+			return
+		}
+
+		const recognition = new SpeechRecognition()
+
+		recognition.lang =
+			language === 'ru' ? 'ru-RU' : language === 'hy' ? 'hy-AM' : 'en-US'
+
+		recognition.interimResults = false
+		recognition.maxAlternatives = 1
+
+recognition.onstart = () => {
+	setIsListening(true)
+	playClick('on')
+}
+
+recognition.onresult = (event: any) => {
+	const transcript = event.results[0][0].transcript
+	setSearchQuery(transcript)
+
+	playClick('off')
+
+	router.push(`/en/results?q=${encodeURIComponent(transcript)}`)
+}
+
+recognition.onerror = () => {
+	setIsListening(false)
+	playClick('off')
+}
+		recognition.onend = () => {
+			setIsListening(false)
+		}
+
+		recognitionRef.current = recognition
+		recognition.start()
+	}
+
+	const playClick = (type: 'on' | 'off') => {
+		if (typeof window === 'undefined') return
+
+		const ctx = new (
+			window.AudioContext || (window as any).webkitAudioContext
+		)()
+
+		const oscillator = ctx.createOscillator()
+		const gain = ctx.createGain()
+
+		oscillator.type = 'sine'
+
+		// разные частоты для on/off
+		oscillator.frequency.value = type === 'on' ? 880 : 440
+
+		gain.gain.value = 0.08
+
+		oscillator.connect(gain)
+		gain.connect(ctx.destination)
+
+		oscillator.start()
+
+		// короткий "тик"
+		setTimeout(() => {
+			oscillator.stop()
+			ctx.close()
+		}, 80)
+	}
+
+	const mainNav = [
+		{
+			href: `/${language}/`,
+			icon: (
+				<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
+					<path d='M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' />
+				</svg>
+			),
+			label: t.home,
+		},
+		{
+			href: `/${language}/shorts`,
+			icon: (
+				<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
+					<path d='M17.77 10.32l-1.2-.5L18 9.19C19.38 8.42 19.86 6.68 19.09 5.3c-.77-1.38-2.51-1.86-3.89-1.09l-5.85 3.28-.01.02-1.17.65c-1.38.77-1.86 2.51-1.09 3.89.28.49.68.87 1.14 1.12l1.2.5L8 13.81C6.62 14.58 6.14 16.32 6.91 17.7c.77 1.38 2.51 1.86 3.89 1.09l5.85-3.27.01-.01 1.17-.65c1.38-.77 1.86-2.51 1.09-3.89-.28-.49-.68-.87-1.15-1.14zM13 14.5l-2-1.17 2-1.16 2 1.16-2 1.17z' />
+				</svg>
+			),
+			label: 'Shorts',
+		},
+	]
+
+	const youSection = [
+		{
+			href: `/${language}/history`,
+			icon: (
+				<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
+					<path d='M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z' />
+				</svg>
+			),
+			label: t.history,
+		},
+		{
+			href: `/${language}/playlists`,
+			icon: (
+				<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
+					<path d='M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z' />
+				</svg>
+			),
+			label: t.playlists,
+		},
+		{
+			href: `/${language}/watch-later`,
+			icon: (
+				<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
+					<path d='M22 13h-4v4h-2v-4h-4v-2h4V7h2v4h4v2zm-8-6H2v1.5h12V7zM2 16.5h8V15H2v1.5zm0-4.5h10v-1.5H2V12z' />
+				</svg>
+			),
+			label: t.watchLater,
+		},
+		{
+			href: `/${language}/liked`,
+			icon: (
+				<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
+					<path d='M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1.91l-.01-.01L23 10z' />
+				</svg>
+			),
+			label: t.liked,
+		},
+		{
+			href: `/${language}/manage-videos`,
+			icon: (
+				<svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'>
+					<path d='M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z' />
+				</svg>
+			),
+			label: t.yourVideos,
+		},
+	]
+
 
 	return (
 		<div
@@ -911,6 +1121,39 @@ export default function UserLayout({
           from { opacity: 0; transform: translateY(-6px) scale(0.98); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
+		    .mic-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 2px solid rgba(230, 57, 70, 0.5);
+    animation: micPulse 1.6s ease-out infinite;
+    pointer-events: none;
+  }
+
+.ring1 {
+	width: 36px;
+	height: 36px;
+}
+
+.ring2 {
+	width: 36px;
+	height: 36px;
+	animation-delay: 0.8s;
+}
+
+
+  @keyframes micPulse {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 0.6;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2.2);
+      opacity: 0;
+    }
+  }
       `}</style>
 
 			{/* HEADER */}
@@ -929,6 +1172,7 @@ export default function UserLayout({
 					alignItems: 'center',
 					padding: '0 16px',
 					gap: 12,
+					overflow: 'visible',
 				}}
 			>
 				{/* Left */}
@@ -1023,6 +1267,7 @@ export default function UserLayout({
 							gap: 8,
 							width: '100%',
 							maxWidth: 580,
+							position: 'relative',
 						}}
 					>
 						<div
@@ -1033,8 +1278,12 @@ export default function UserLayout({
 								height: 38,
 								background: searchFocused ? '#111' : '#0d0d0d',
 								border: `1px solid ${searchFocused ? '#e63946' : '#1e1e1e'}`,
-								borderRadius: 20,
-								overflow: 'hidden',
+								borderRadius:
+									showSuggestions && suggestions.length > 0
+										? '20px 20px 0 0'
+										: 20,
+								overflow: 'visible',
+								position: 'relative',
 								transition: 'border-color 0.2s, background 0.2s',
 								boxShadow: searchFocused
 									? '0 0 0 3px rgba(230,57,70,0.08)'
@@ -1062,10 +1311,18 @@ export default function UserLayout({
 							<input
 								type='text'
 								value={searchQuery}
-								onChange={e => setSearchQuery(e.target.value)}
-								onFocus={() => setSearchFocused(true)}
-								onBlur={() => setSearchFocused(false)}
+								onChange={e => handleSearchChange(e.target.value)}
+								onFocus={() => {
+									setSearchFocused(true)
+									if (suggestions.length > 0) setShowSuggestions(true)
+								}}
+								onBlur={() => {
+									setSearchFocused(false)
+									setTimeout(() => setShowSuggestions(false), 150)
+								}}
+								onKeyDown={handleSearchKeyDown}
 								placeholder={t.mainSearch}
+								autoComplete='off'
 								style={{
 									flex: 1,
 									background: 'transparent',
@@ -1079,7 +1336,7 @@ export default function UserLayout({
 							/>
 							{searchQuery && (
 								<button
-								type='button'
+									type='button'
 									onClick={() => setSearchQuery('')}
 									style={{
 										padding: '0 12px',
@@ -1102,41 +1359,114 @@ export default function UserLayout({
 									</svg>
 								</button>
 							)}
+							{/* Suggestions dropdown */}
+							{showSuggestions && suggestions.length > 0 && (
+								<div
+									ref={suggestionsRef}
+									style={{
+										position: 'absolute',
+										top: '100%',
+										left: -1,
+										right: -1,
+										background: '#111',
+										border: '1px solid #e63946',
+										borderTop: 'none',
+										borderRadius: '0 0 16px 16px',
+										overflow: 'hidden',
+										zIndex: 200,
+										boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+									}}
+								>
+									{suggestions.map((s, i) => (
+										<div
+											key={s}
+											onMouseDown={() => handleSuggestionClick(s)}
+											onMouseEnter={() => setActiveSuggestion(i)}
+											style={{
+												display: 'flex',
+												alignItems: 'center',
+												gap: 10,
+												padding: '9px 16px',
+												cursor: 'pointer',
+												background:
+													i === activeSuggestion
+														? 'rgba(230,57,70,0.08)'
+														: 'transparent',
+												transition: 'background 0.1s',
+												borderBottom:
+													i < suggestions.length - 1
+														? '1px solid #1a1a1a'
+														: 'none',
+											}}
+										>
+											<svg
+												width='13'
+												height='13'
+												viewBox='0 0 24 24'
+												fill='#444'
+												style={{ flexShrink: 0 }}
+											>
+												<path d='M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z' />
+											</svg>
+											<span
+												style={{
+													fontSize: 13,
+													color: i === activeSuggestion ? '#fff' : '#bbb',
+													overflow: 'hidden',
+													textOverflow: 'ellipsis',
+													whiteSpace: 'nowrap',
+												}}
+											>
+												{s}
+											</span>
+										</div>
+									))}
+								</div>
+							)}
 						</div>
-						<button
-							type='submit'
-							style={{
-								width: 36,
-								height: 36,
-								borderRadius: '50%',
-								background: '#111',
-								border: '1px solid #1e1e1e',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								cursor: 'pointer',
-								color: '#555',
-								flexShrink: 0,
-								transition: 'border-color 0.15s, color 0.15s',
-							}}
-							onMouseEnter={e => {
-								e.currentTarget.style.borderColor = '#333'
-								e.currentTarget.style.color = '#ccc'
-							}}
-							onMouseLeave={e => {
-								e.currentTarget.style.borderColor = '#1e1e1e'
-								e.currentTarget.style.color = '#555'
-							}}
-						>
-							<svg
-								width='14'
-								height='14'
-								viewBox='0 0 24 24'
-								fill='currentColor'
+						<div style={{ position: 'relative', width: 36, height: 36 }}>
+							{isListening && (
+								<>
+									<span className='mic-ring ring1' />
+									<span className='mic-ring ring2' />
+								</>
+							)}
+							<button
+								type='button'
+								onClick={startVoiceSearch}
+								style={{
+									width: 36,
+									height: 36,
+									borderRadius: '50%',
+									background: isListening ? '#e63946' : '#111',
+									border: '1px solid #1e1e1e',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									cursor: 'pointer',
+									color: isListening ? '#fff' : '#555',
+									position: 'relative',
+									zIndex: 2,
+								}}
+								onMouseEnter={e => {
+									e.currentTarget.style.borderColor = '#333'
+									e.currentTarget.style.color = '#ccc'
+								}}
+								onMouseLeave={e => {
+									e.currentTarget.style.borderColor = '#1e1e1e'
+									e.currentTarget.style.color = '#555'
+								}}
 							>
-								<path d='M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z' />
-							</svg>
-						</button>
+								<svg
+									width='14'
+									height='14'
+									viewBox='0 0 24 24'
+									fill='currentColor'
+								>
+									<path d='M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z' />
+								</svg>
+							</button>
+						</div>
 					</form>
 				</div>
 
@@ -1186,7 +1516,7 @@ export default function UserLayout({
 							>
 								<path d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z' />
 							</svg>
-							Upload
+							{t.upload}
 						</button>
 					)}
 
@@ -1236,7 +1566,7 @@ export default function UserLayout({
 						<Divider />
 
 						<SectionLabel
-							label='You'
+							label={t.youLabel}
 							open={youOpen}
 							onToggle={() => setYouOpen(v => !v)}
 						/>
@@ -1255,7 +1585,7 @@ export default function UserLayout({
 						<Divider />
 
 						<SectionLabel
-							label='Subscriptions'
+							label={t.subscriptionsLabel}
 							open={subsOpen}
 							onToggle={() => setSubsOpen(v => !v)}
 						/>
@@ -1271,10 +1601,10 @@ export default function UserLayout({
 												lineHeight: 1.5,
 											}}
 										>
-											Sign in to see your subscriptions.
+											{t.signInToSeeSubscriptions}
 										</p>
 										<Link
-											href='/en/login'
+											href={`/${language}/login`}
 											style={{
 												display: 'inline-flex',
 												alignItems: 'center',
@@ -1289,7 +1619,7 @@ export default function UserLayout({
 												transition: 'all 0.15s',
 											}}
 										>
-											Sign in
+											{t.signIn}
 										</Link>
 									</div>
 								) : subscribedChannels.length === 0 ? (
@@ -1302,14 +1632,14 @@ export default function UserLayout({
 												margin: 0,
 											}}
 										>
-											You haven&apos;t subscribed to any channels yet.
+											{t.noSubscriptions}
 										</p>
 									</div>
 								) : (
 									<>
 										{subscribedChannels.map(channel => {
 											const name = channel.display_name || channel.username
-											const href = `/en/channel/${channel.id}`
+											const href = `/${language}/channel/${channel.id}`
 											const isActive = pathname === href
 											return (
 												<Link
@@ -1374,7 +1704,7 @@ export default function UserLayout({
 											)
 										})}
 										<Link
-											href='/en/subscriptions'
+											href={`/${language}/subscriptions`}
 											style={{
 												display: 'flex',
 												alignItems: 'center',
@@ -1400,7 +1730,7 @@ export default function UserLayout({
 											>
 												<path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z' />
 											</svg>
-											<span>View all</span>
+											<span>{t.viewAll}</span>
 										</Link>
 									</>
 								)}
@@ -1410,48 +1740,66 @@ export default function UserLayout({
 						<Divider />
 
 						<SectionLabel
-							label='Languages'
+							label={t.languageLabel}
 							open={langOpen}
 							onToggle={() => setLangOpen(v => !v)}
 						/>
 						{langOpen && (
 							<div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-								{languages.map(lang => (
-									<div
-										key={lang.code}
-										style={{
-											display: 'flex',
-											alignItems: 'center',
-											gap: 10,
-											padding: '8px 12px',
-											borderRadius: 10,
-											cursor: 'pointer',
-											transition: 'background 0.15s',
-										}}
-										onMouseEnter={e =>
-											(e.currentTarget.style.background =
-												'rgba(255,255,255,0.04)')
-										}
-										onMouseLeave={e =>
-											(e.currentTarget.style.background = 'transparent')
-										}
-									>
-										<img
-											src={lang.flag}
-											alt={lang.label}
+								{languages.map(lang => {
+									const isActive = language === lang.code
+									return (
+										<div
+											key={lang.code}
+											onClick={() => handleLanguageChange(lang.code)}
 											style={{
-												width: 18,
-												height: 12,
-												borderRadius: 2,
-												objectFit: 'cover',
-												flexShrink: 0,
+												display: 'flex',
+												alignItems: 'center',
+												gap: 10,
+												padding: '8px 12px',
+												borderRadius: 8,
+												cursor: isActive ? 'default' : 'pointer',
+												background: isActive
+													? 'rgba(255,255,255,0.08)'
+													: 'transparent',
+												transition: 'background 0.15s',
 											}}
-										/>
-										<span style={{ fontSize: 12, color: '#666' }}>
-											{lang.label}
-										</span>
-									</div>
-								))}
+											onMouseEnter={e => {
+												if (!isActive) {
+													e.currentTarget.style.background =
+														'rgba(255,255,255,0.04)'
+												}
+											}}
+											onMouseLeave={e => {
+												if (!isActive) {
+													e.currentTarget.style.background = 'transparent'
+												}
+											}}
+										>
+											<img
+												src={lang.flag}
+												alt={lang.label}
+												style={{
+													width: 18,
+													height: 12,
+													borderRadius: 2,
+													objectFit: 'cover',
+													flexShrink: 0,
+													opacity: isActive ? 1 : 0.7,
+												}}
+											/>
+											<span
+												style={{
+													fontSize: 12,
+													color: isActive ? '#fff' : '#666',
+													fontWeight: isActive ? 600 : 400,
+												}}
+											>
+												{lang.label}
+											</span>
+										</div>
+									)
+								})}
 							</div>
 						)}
 
@@ -1463,7 +1811,7 @@ export default function UserLayout({
 									letterSpacing: '0.5px',
 								}}
 							>
-								© 2025 ArmTube
+								© 2026 ArmTube
 							</p>
 						</div>
 					</div>
@@ -1493,4 +1841,5 @@ export default function UserLayout({
 			)}
 		</div>
 	)
+	
 }

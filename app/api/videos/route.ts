@@ -9,7 +9,7 @@ export async function GET(req: Request) {
 	try {
 		const { searchParams } = new URL(req.url)
 		const category = searchParams.get('category')
-		const video_type = searchParams.get('video_type') // ← NEW
+		const video_type = searchParams.get('video_type')
 		const cursor_created_at = searchParams.get('cursor_created_at')
 		const cursor_id = searchParams.get('cursor_id')
 		const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50)
